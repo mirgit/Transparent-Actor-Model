@@ -92,7 +92,8 @@ endom)
 endm)
 
 
-(rew [5] < sensor : Actor |  state : 0 , queue : nomsg , Executing : ConcatSTMT(SendMSG(CPU, ack), nostmt) > .)
----(< net : Network | queue : nomsg >
-NewMSG(sensor , CPU, Sendack)
-< CPU : Actor | state ; 0 , queue : nomsg , Executing : nostmt > .)
+---(rew [5] < sensor : Actor |  state : 0 , queue : nomsg , Executing : ConcatSTMT(SendMSG(CPU, ack), nostmt) > .)
+(rew [5] < sensor : Actor |  state : 0 , queue : nomsg , Executing : nostmt >
+	< net : Network | queue : nomsg >
+	NewMSG(sensor , CPU, Sendack)
+	< CPU : Actor | state ; 0 , queue : nomsg , Executing : nostmt > .)
