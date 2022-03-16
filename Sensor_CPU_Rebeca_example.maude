@@ -1,0 +1,140 @@
+load full-maude31
+
+
+(mod MY_ACTOR is
+    inc NAT .
+    sort Stmt Stmts Msgs .
+    subsort Msg < Msgs .
+    subsort Stmt < Stmts .
+    
+    sort Handler .
+    
+    
+    op Send : Oid Oid Nat -> Msg [ctor] .
+    op SendMsg : Oid -> Stmt .
+    op noSTMT : -> Stmt [ctor] .
+    op noMSG : -> Msg [ctor] .
+    class Actor | state : Nat , executing : Stmts , queue : Msgs .
+    class Network | queue : Msgs .
+
+    op ConcatMSG : Msgs Msgs -> Msgs [ctor] .
+    op ConcatSTMT : Stmts Stmts -> Stmts [ctor] .
+
+endm)
+
+(omod MY_CONFIGURATION is
+
+    protecting MY_ACTOR .
+    vars actor actor' net : Oid .
+    var N : Nat .
+    var MsgList MsgList' : Msgs .
+    var StmtList : Stmts .
+    
+---(    rl [test] : 
+    	< actor : Actor | state : N >
+    =>
+    	< actor : Actor | state : s N > .
+)
+
+    rl [MSG_to_Network] :
+        < actor : Actor | state : N, executing : ConcatSTMT(SendMsg(actor'),StmtList) >
+        < net : Network | queue : MsgList >
+    =>
+        < actor : Actor | executing : StmtList >
+        < net : Network | queue : ConcatMSG(MsgList,Send(actor, actor', N)) > .
+    
+    rl [network_queue] : 
+        < net : Network | queue : ConcatMSG(noMSG,MsgList) > 
+    =>
+    	< net : Network | queue : ConcatMSG(MsgList,noMSG) > .    
+    
+    rl [MSG_to_receiver1] :
+    	< actor' : Actor | executing : StmtList , queue : noMSG >
+    	< net : Network | queue : ConcatMSG(Send(actor, actor', N),MsgList) >
+    =>
+    	< actor' : Actor | executing : StmtList , queue :  ConcatMSG(Send(actor, actor', N),noMSG) >
+    	< net : Network | queue : MsgList > .
+    	
+    	    
+    rl [MSG_to_receiver2] :
+    	< actor' : Actor | executing : StmtList , queue : MsgList' >
+    	< net : Network | queue : ConcatMSG(Send(actor, actor', N),MsgList) >
+    =>
+    	< actor' : Actor | executing : StmtList , queue :  ConcatMSG(MsgList',Send(actor, actor', N)) >
+    	< net : Network | queue : MsgList > .
+
+    	
+endom)
+
+
+(omod SENSOR is
+    extending MY_ACTOR .
+    class Sensor | data : Nat , knownCPU : Oid .
+    subclass Sensor < Actor .
+    
+---    op send_data : Actor -> Handler .
+    
+    var sen actor : Oid .    var d d' : Nat .    var StmtList : Stmts .    var MsgList : Msgs .
+    
+---(    rl [send_data__execute] :
+    	< sen : Sensor | data : d , queue : MsgList , executing : StmtList >
+    =>
+    	< sen : Sensor | queue : MsgList , executing : ConcatSTMT(SendMsg(actor),StmtList) > .)
+    
+    rl [send_data__read] :
+        < sen : Sensor | data : d , queue : ConcatMSG(Send(actor, sen, d'), MsgList) , executing : noSTMT >
+    =>
+    	< sen : Sensor | queue : MsgList , knownCPU : actor , executing : ConcatSTMT(SendMsg(actor),noSTMT) > .
+    	
+    rl [send_data__read_sensor2] :
+        < sen : Sensor | queue : ConcatMSG(noMSG,Send(actor,sen, d)) >
+    =>
+        < sen : Sensor | queue : ConcatMSG(Send(actor,sen, d),noMSG) > .
+    
+endom)
+
+(omod MY_CPU is
+    extending MY_ACTOR .
+    class CPU | knownSen : Oid .
+    subclass CPU < Actor .
+    
+---    op send_data : Actor -> Handler .
+    
+    var cpu actor : Oid .    var d : Nat .    var StmtList : Stmts .    var MsgList : Msgs .
+    
+---(    rl [send_data__execute] :
+    	< cpu : CPU | queue : MsgList , executing : StmtList >
+    =>
+    	< cpu : CPU | queue : MsgList , executing : ConcatSTMT(SendMsg(actor),StmtList) > .)
+
+    rl [send_data__read_cpu1] :
+        < cpu : CPU | knownSen : actor , queue : ConcatMSG(Send(actor,cpu, d),MsgList) , executing : noSTMT >
+    =>
+    	< cpu : CPU | queue : MsgList , knownSen : actor , executing : ConcatSTMT(SendMsg(actor),noSTMT) > .
+
+    rl [send_data__read_cpu2] :
+        < cpu : CPU | knownSen : actor , queue : ConcatMSG(noMSG,Send(actor,cpu, d)) , executing : noSTMT >
+    =>
+        < cpu : CPU | knownSen : actor , queue : ConcatMSG(Send(actor,cpu, d),noMSG) , executing : noSTMT > .
+
+endom)
+	
+
+
+
+(mod TEST_CASE is
+    ex MY_CONFIGURATION .
+    ex SENSOR .
+    ex MY_CPU .
+    ops actor1 actor2 sensor1 network theCPU : -> Oid [ctor] .
+endm)
+
+
+
+
+
+( frew [20]
+< network : Network | queue : noMSG >
+< sensor1 : Sensor | state : 0 , data : 200 , executing : noSTMT , queue : ConcatMSG(Send(theCPU, sensor1, 1),noMSG) , knownCPU : theCPU >
+< theCPU : CPU | state : 0 , executing : noSTMT , queue : noMSG , knownSen : sensor1 > .)
+
