@@ -1,0 +1,52 @@
+fmod SYNTAX is
+    sorts aid Stmt stmtList netState .
+    
+    op self : -> aid .
+    subsort Stmt < stmtList .
+    op _;_ : stmtList stmtList -> stmtList .
+endfm
+
+
+fmod ENVIRONMENT is
+    pr SYNTAX .
+    inc INT .
+    sort Var Env Expr .
+    subsort Int Var < Expr .
+    op mt : -> Env [ctor] .
+    op _:_ : Var Int -> Env .
+    ops _+_ _*_ _-_ : Expr Expr -> Expr [ditto] .
+    op __ : Env Env -> Env [assoc] .
+    op eval : Expr Env -> Expr .
+    op _(_) : Env Var -> Int .
+    op _[_->_] : Env Var Int -> Env .
+    op remove : Env Var -> Env .
+
+    var e : Env .		var v v' : Var .		var i : Int .
+    var ex ex' : Expr .
+
+    eq remove (mt , v) = mt .
+    eq remove( (v : i) e , v') = if v == v' then e else (v : i) remove(e,v') fi .
+
+    eq e [ v -> i ] = remove(e,v) v : i .
+
+    eq eval(ex + ex' , e) = eval(ex , e) + eval(ex' , e) .
+    eq eval(ex * ex' , e) = eval(ex , e) * eval(ex' , e) .
+    eq eval(ex - ex' , e) = eval(ex , e) - eval(ex' , e) .
+    eq eval(i , e) = i .
+    eq eval(v , (v' : i) e) = if v == v' then i else eval(v,e) fi .
+    
+    eq e ( v ) = eval ( v , e ) .
+
+endfm
+
+
+fmod HANDLERS is
+    pr SYNTAX .
+---    pr BUFFERS .
+    sort DB hid hname .
+    
+    op _{_} : hid stmtList -> DB .
+    op Handler : hid -> stmtList .
+    op _._ : aid hname -> hid .
+    
+endfm

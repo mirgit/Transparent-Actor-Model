@@ -1,0 +1,143 @@
+load basics.maude
+load RebecaBuffer.maude
+
+
+mod STMTEXECUTION is
+    pr SYNTAX .
+    pr BUFFERS .
+    sort trans .
+    op <_,_> : Env stmtList -> trans .
+    op Tee : -> Stmt .
+    op _=_ : Var Expr -> Stmt .
+    op _!_ : Var hname -> Stmt .
+    op if(_) {_} else {_} : Expr stmtList stmtList -> Stmt .
+    op skip : -> Stmt .
+    op endH : -> Stmt . 		--- can empty stmt exist?
+
+    var e e' : Env .		vars pi pi' pi1 pi2 : stmtList .
+    var ex : Expr .		var v : Var .
+    crl [COND1] :
+        < e , if ( ex ) { pi1 } else { pi2 } > => < e' , pi' >
+            if eval( ex,e) > 0 /\ < e , pi1 > => < e' , pi' > .
+
+    crl [COND2] :
+        < e , if ( ex ) { pi1 } else { pi2 } > => < e' , pi' >
+            if eval( ex,e) == 0 /\ < e , pi2 > => < e' , pi' > .
+
+    rl [SKIP] :
+        < e , skip > => < e , Tee > .
+
+    rl [ENDH] :
+        < e , endH > => < e , Tee > .
+
+    rl [ASSIGN] :
+        < e , v = ex > => < e [ v -> eval(ex,e) ] , Tee > .
+
+    crl [SEQ] :
+        < e , pi ; pi' > => < e' , pi' > if < e , pi > => < e' , Tee > .
+        
+---(
+    var n : hname .
+    rl [SEND] :
+        < e , v ! n > => < e , Tee > GenerateMSG(e ( self ) ,v,n) .
+)
+
+
+endm
+
+
+
+	
+mod ACTOR is
+    pr STMTEXECUTION .
+    pr POLICIES .
+    pr HANDLERS .
+    sort localState .
+    op __ : localState msg -> localState .
+    op <_,_,_> : Env bufferActor stmtList -> localState .
+
+    var e e' : Env .		var b : bufferActor .		var pi pi' : stmtList .
+    var m : msg .
+    crl [TAKE] :
+        < e , b , Tee > => < e , remove(b,m) , Handler ( m . name ) > if m := takePolicy(e,b) . --- !! can write m := takePolicy(e,b) ?
+    crl [STMTEXECUTION] :
+        < e , b , pi > => < e' , b , pi' > if < e , pi > => < e' , pi' > .
+    crl [RECEIVE_A] :
+        < e , b , pi > m => < e , insert(b,m) , pi > if rcvPolicy(b,m) .
+
+endm
+
+
+
+mod NETWORK is
+    pr POLICIES .
+
+    op __ : netState msg -> netState .
+    op <_,_> : Env bufferNet -> netState .
+    var e : Env .		var b : bufferNet .
+    var m : msg .
+    
+    rl [RECEIVE_N] :
+        < e , b > m => < e , insert(b, tag(e,m)) > .
+
+    crl [TRANSFER] :
+        < e , b > => < e , remove(b,m) > if m := transferPolicy(e,b) . --- !! can write m := transferPolicy(e,b) ?
+
+endm
+
+
+
+mod COMPOSITION is
+    inc NETWORK .
+    inc ACTOR .
+    sort actorList Composition .
+    
+    op _:_ : aid localState -> actorList .
+    op __ : actorList actorList -> actorList .
+    op <_,_,_> : Env actorList netState -> Composition .
+    
+    ops start terminate : Env aid -> Env .
+    op _(_) : actorList aid -> localState .
+    op _[_->_] : actorList aid localState -> actorList .
+    
+    var s : actorList .	var n : netState .
+    var x y : aid .		var e e' e'' e1 e2 : Env .
+    var b b' : bufferActor .	var b2 b'' : bufferNet .
+    var pi pi' : stmtList .	var m : msg .
+
+    crl [ACTOR_PROG_I] :
+        < e , s , n > => < start(e,x) , s [ x -> < e' , b' , pi' > ] , n > if
+             schedPolicy(e,n,x) /\  < e1 , b , pi > := s ( x )  /\ < e1 , b , pi > => < e' , b' , pi' > .
+    
+    crl [ACTOR_PROG_II] :
+        < e , s , n > => < e , s [ x -> < e' , b' , pi' > ] , n > if
+            < e1 , b , pi > := s ( x ) /\ < e1 , b , pi > => < e' , b' , pi' > .
+            
+    crl [ACTOR_PROG_III] :
+        < e , s , n > => < terminate(e , x) , s [ x -> < e' , b' , pi' > ] , n > if
+            < e1 , b , pi > := s ( x ) /\ < e1 , b , pi > => < e' , b' , pi' > .
+            
+    crl [COMMUNICATION_I] :
+        < e , s , n > => < e , s [ x -> < e' , b' , pi' > ] , < e'' , b'' > > if
+            < e1 , b , pi > := s ( x ) /\ < e1 , b , pi > => < e' , b' , pi' > m /\  < e2 , b2 > := n /\ < e2 , b2 > m => < e'' , b'' > .
+             
+    crl [COMMUNICATION_II] :
+        < e , s , n > => < e , s [ x -> < e' , b' , pi' > ] , < e'' , b'' > > if
+            < e2 , b2 > := n /\ < e2 , b2 > => < e'' , b'' > m /\ rcvr(m) == y /\ < e1 , b , pi > := s ( y ) /\ < e1 , b , pi > m => < e' , b' , pi' > .
+    
+
+
+endm
+
+mod MAIN is
+    pr COMPOSITION .
+    op c1 : -> aid .
+    
+endm
+---(
+
+
+debug rew < mt , c1 : < mt self : c1 , emptyBA , Tee > , < mt , emptyBN > > .
+
+)
+
