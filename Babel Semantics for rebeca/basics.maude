@@ -10,12 +10,15 @@ endfm
 fmod ENVIRONMENT is
     pr SYNTAX .
     inc INT .
+    
     sort Var Env Expr .
+    ops a1 a2 a3 a4 a5 a6 : -> Var .
     subsort Int Var < Expr .
     op mt : -> Env [ctor] .
     op _:_ : Var Int -> Env .
     ops _+_ _*_ _-_ : Expr Expr -> Expr [ditto] .
-    op __ : Env Env -> Env [assoc] .
+    ops _<_ _>_ _==_ : Expr Expr -> Expr .
+    op __ : Env Env -> Env [assoc comm] .
     op eval : Expr Env -> Expr .
     op _(_) : Env Var -> Int .
     op _[_->_] : Env Var Int -> Env .
@@ -34,8 +37,12 @@ fmod ENVIRONMENT is
     eq eval(ex - ex' , e) = eval(ex , e) - eval(ex' , e) .
     eq eval(i , e) = i .
     eq eval(v , (v' : i) e) = if v == v' then i else eval(v,e) fi .
+    eq eval(ex < ex' , e) = if eval(ex,e) < eval (ex' , e) then 1 else 0 fi .
+    eq eval(ex > ex' , e) = if eval(ex,e) > eval (ex' , e) then 1 else 0 fi .
+    eq eval(ex == ex' , e) = if eval(ex,e) == eval (ex' , e) then 1 else 0 fi .
     
     eq e ( v ) = eval ( v , e ) .
+--- ex :  red in ENVIRONMENT : eval ( a1 + 4 , mt a1 : 3) .
 
 endfm
 
