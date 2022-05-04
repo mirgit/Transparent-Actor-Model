@@ -17,7 +17,7 @@ fmod ENVIRONMENT is
     op mt : -> Env [ctor] .
     op _:_ : Var Int -> Env .
     ops _+_ _*_ _-_ : Expr Expr -> Expr [ditto] .
-    ops _<_ _>_ _==_ : Expr Expr -> Expr .
+---    ops _<_ _>_ _==_ : Expr Expr -> Expr .			--- !!! uncomment this line, warnings are considered.
     op __ : Env Env -> Env [assoc comm] .
     op eval : Expr Env -> Expr .
     op _(_) : Env Var -> Int .
@@ -37,9 +37,9 @@ fmod ENVIRONMENT is
     eq eval(ex - ex' , e) = eval(ex , e) - eval(ex' , e) .
     eq eval(i , e) = i .
     eq eval(v , (v' : i) e) = if v == v' then i else eval(v,e) fi .
-    eq eval(ex < ex' , e) = if eval(ex,e) < eval (ex' , e) then 1 else 0 fi .
-    eq eval(ex > ex' , e) = if eval(ex,e) > eval (ex' , e) then 1 else 0 fi .
-    eq eval(ex == ex' , e) = if eval(ex,e) == eval (ex' , e) then 1 else 0 fi .
+---    eq eval(ex < ex' , e) = if eval(ex,e) < eval (ex' , e) then 1 else 0 fi .			--- !!! uncomment this line, warnings are considered.
+---    eq eval(ex > ex' , e) = if eval(ex,e) > eval (ex' , e) then 1 else 0 fi .			--- !!! uncomment this line, warnings are considered.
+---    eq eval(ex == ex' , e) = if eval(ex,e) == eval (ex' , e) then 1 else 0 fi .			--- !!! uncomment this line, warnings are considered.
     
     eq e ( v ) = eval ( v , e ) .
 --- ex :  red in ENVIRONMENT : eval ( a1 + 4 , mt a1 : 3) .
