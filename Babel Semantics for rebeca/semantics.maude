@@ -1,11 +1,11 @@
 load basics.maude
-load RebecaBuffer.maude
+load SimpleBuffer.maude
 
 
 mod STMTEXECUTION is
     pr SYNTAX .
     pr BUFFERS .
-    sort trans .
+---    sort trans .
     op <_,_> : Env stmtList -> trans .
     op Tee : -> Stmt .
     op _=_ : Var Expr -> Stmt .
@@ -53,17 +53,18 @@ mod ACTOR is
     pr POLICIES .
     pr HANDLERS .
     sort localState .
-    op __ : localState msg -> localState .
+    op __ : localState msg -> localState [prec 50] .
+    op __ : DB localState -> localState [prec 60] .
     op <_,_,_> : Env bufferActor stmtList -> localState .
 
     var e e' : Env .		var b : bufferActor .		var pi pi' : stmtList .
-    var m : msg .
+    var m : msg .		var db : DB .
     crl [TAKE] :
-        < e , b , Tee > => < e , remove(b,m) , Handler ( m . name ) > if m := takePolicy(e,b) . --- !! can write m := takePolicy(e,b) ?
+        db < e , b , Tee > => < e , remove(b,m) , Handler ( db , m . name ) > if m := takePolicy(e,b) /\ b =/= emptyBA .
     crl [STMTEXECUTION] :
-        < e , b , pi > => < e' , b , pi' > if < e , pi > => < e' , pi' > .
+        db < e , b , pi > => < e' , b , pi' > if < e , pi > => < e' , pi' > /\ pi =/= pi' .
     crl [RECEIVE_A] :
-        < e , b , pi > m => < e , insert(b,m) , pi > if rcvPolicy(b,m) .
+        db < e , b , pi > m => < e , insert(b,m) , pi > if rcvPolicy(b,m) .
 
 endm
 
@@ -72,58 +73,73 @@ endm
 mod NETWORK is
     pr POLICIES .
 
-    op __ : netState msg -> netState .
+    op __ : netState msg -> netState [prec 50] .
+    op __ : DB netState -> netState [prec 60] .
     op <_,_> : Env bufferNet -> netState .
     var e : Env .		var b : bufferNet .
-    var m : msg .
+    var m : msg .		var db : DB .
     
     rl [RECEIVE_N] :
-        < e , b > m => < e , insert(b, tag(e,m)) > .
+        db < e , b > m => < e , insert(b, tag(e,m)) > .
 
     crl [TRANSFER] :
-        < e , b > => < e , remove(b,m) > if m := transferPolicy(e,b) . --- !! can write m := transferPolicy(e,b) ?
+        db < e , b > => < e , remove(b,m) > m if m := transferPolicy(e,b) /\ b =/= emptyBN . --- !! can write m := transferPolicy(e,b) ?
 
 endm
 
 
 
 mod COMPOSITION is
-    inc NETWORK .
-    inc ACTOR .
+    pr NETWORK .
+    pr ACTOR .
+    
+---    sort WHOLE .
+---    op _|_ : DB Composition -> WHOLE .
+
     sort actorList Composition .
     
     op _:_ : aid localState -> actorList .
-    op __ : actorList actorList -> actorList .
-    op <_,_,_> : Env actorList netState -> Composition .
+    op emptyAL : -> actorList [ctor] .
+    op __ : actorList actorList -> actorList [comm assoc] .
+    op _| <_,_,_> : DB Env actorList netState -> Composition .
     
     ops start terminate : Env aid -> Env .
     op _(_) : actorList aid -> localState .
+    op remove : actorList aid -> actorList .
     op _[_->_] : actorList aid localState -> actorList .
     
-    var s : actorList .	var n : netState .
-    var x y : aid .		var e e' e'' e1 e2 : Env .
+    
+    var s : actorList .	var n : netState .		var s1 : localState .
+    var x y : aid .		var e e' e'' e1 e2 : Env .	var db : DB .
     var b b' : bufferActor .	var b2 b'' : bufferNet .
     var pi pi' : stmtList .	var m : msg .
+    
+    eq remove(emptyAL , x) = emptyAL .
+    eq remove( (x : s1) s,y) = if x == y then s else (x : s1 ) remove(s,y) fi .
+    eq s [ x -> < e , b , pi > ] = (x : < e , b , pi >) remove(s,x) .
+    eq (x : s1) s ( y ) = if x == y then s1 else s ( y ) fi .
+    eq start(e,x) = e .
+    eq terminate(e,x ) = e .
 
     crl [ACTOR_PROG_I] :
-        < e , s , n > => < start(e,x) , s [ x -> < e' , b' , pi' > ] , n > if
-             schedPolicy(e,n,x) /\  < e1 , b , pi > := s ( x )  /\ < e1 , b , pi > => < e' , b' , pi' > .
+        db | < e , (x : s1) s , n > => db | < start(e,x) , s [ x -> < e' , b' , pi' > ] , n > if
+             schedPolicy(e,n,x) /\  < e1 , b , pi > := s1  /\  db < e1 , b , pi > => < e' , b' , pi' > .
     
     crl [ACTOR_PROG_II] :
-        < e , s , n > => < e , s [ x -> < e' , b' , pi' > ] , n > if
-            < e1 , b , pi > := s ( x ) /\ < e1 , b , pi > => < e' , b' , pi' > .
+        db | < e , (x : s1) s , n > => db | < e , s [ x -> < e' , b' , pi' > ] , n > if
+            < e1 , b , pi > := s1 /\ db < e1 , b , pi > => < e' , b' , pi' > .
             
     crl [ACTOR_PROG_III] :
-        < e , s , n > => < terminate(e , x) , s [ x -> < e' , b' , pi' > ] , n > if
-            < e1 , b , pi > := s ( x ) /\ < e1 , b , pi > => < e' , b' , pi' > .
+        db | < e , (x : s1) s , n > => db | < terminate(e , x) , s [ x -> < e' , b' , pi' > ] , n > if
+            < e1 , b , pi > := s1 /\ db < e1 , b , pi > => < e' , b' , pi' > .
             
     crl [COMMUNICATION_I] :
-        < e , s , n > => < e , s [ x -> < e' , b' , pi' > ] , < e'' , b'' > > if
-            < e1 , b , pi > := s ( x ) /\ < e1 , b , pi > => < e' , b' , pi' > m /\  < e2 , b2 > := n /\ < e2 , b2 > m => < e'' , b'' > .
+        db | < e , (x : s1) s , n > => db | < e , s [ x -> < e' , b' , pi' > ] , < e'' , b'' > > if
+            < e1 , b , pi > := s1 /\ db < e1 , b , pi > => < e' , b' , pi' > m /\  < e2 , b2 > := n /\ db < e2 , b2 > m => < e'' , b'' > .
              
     crl [COMMUNICATION_II] :
-        < e , s , n > => < e , s [ x -> < e' , b' , pi' > ] , < e'' , b'' > > if
-            < e2 , b2 > := n /\ < e2 , b2 > => < e'' , b'' > m /\ rcvr(m) == y /\ < e1 , b , pi > := s ( y ) /\ < e1 , b , pi > m => < e' , b' , pi' > .
+        db | < e , s , n > => db | < e , s [ y -> < e' , b' , pi' > ] , < e'' , b'' > > if
+            < e2 , b2 > := n /\ db < e2 , b2 > => < e'' , b'' > m /\ y := rcvr(m) /\ < e1 , b , pi > := s ( y ) /\ db < e1 , b , pi > m => < e' , b' , pi' > .
     
 
 
@@ -131,13 +147,23 @@ endm
 
 mod MAIN is
     pr COMPOSITION .
-    op c1 : -> aid .
-    
+    ops c1 c2 : -> aid .
+    ops handler1 handler2 : -> hname .
+    subsort Int < aid .
+    op fakedb : -> DB .
+
 endm
 ---(
 
-
+rew emptyHL | < mt , emptyAL , < mt , emptyBN > > .
 debug rew < mt , c1 : < mt self : c1 , emptyBA , Tee > , < mt , emptyBN > > .
 
-)
+debug frew in MAIN : c1 . handler1 { c2 ! handler2 ; endH } | < mt , c1 : < mt , emptyBA , Tee > emptyAL , < mt , append( msg(c1,handler1,c1) , emptyBN) > > .
 
+debug rew < mt , append( msg(c1,handler1,c1), emptyBN) > .
+
+debug frew in MAIN : (c1 . handler1 { skip ; endH }) emptyHL | < mt , (c1 : < mt , emptyBA , Tee >) emptyAL , < mt , append( msg(c1,handler1,c1) , emptyBN) > > .
+
+debug frew in MAIN : (c1 . handler1 { a1 = a1 + 1 ; endH }) emptyHL | < mt , (c1 : < mt a1 : 3 , emptyBA , Tee >) emptyAL , < mt , append(msg(c1, handler1, c1), append(msg(c1, handler1, c1),emptyBN)) > > .
+
+)
