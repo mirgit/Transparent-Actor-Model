@@ -1,21 +1,25 @@
 load basics.maude
-load SimpleBuffer.maude
+load Buffer.maude
 
 
 mod STMTEXECUTION is
     pr SYNTAX .
     pr BUFFERS .
 ---    sort trans .
+    op self : -> Var .
     op <_,_> : Env stmtList -> trans .
+    op __ : trans msg -> trans .	
     op Tee : -> Stmt .
     op _=_ : Var Expr -> Stmt .
     op _!_ : Var hname -> Stmt .
     op if(_) {_} else {_} : Expr stmtList stmtList -> Stmt .
     op skip : -> Stmt .
     op endH : -> Stmt . 		--- can empty stmt exist?
+    
+    op GenerateMSG : aid hname aid  -> msg .
 
     var e e' : Env .		vars pi pi' pi1 pi2 : stmtList .
-    var ex : Expr .		var v : Var .
+    var ex : Expr .		var v : Var .      var m : msg .
     crl [COND1] :
         < e , if ( ex ) { pi1 } else { pi2 } > => < e' , pi' >
             if eval( ex,e) > 0 /\ < e , pi1 > => < e' , pi' > .
@@ -35,19 +39,24 @@ mod STMTEXECUTION is
 
     crl [SEQ] :
         < e , pi ; pi' > => < e' , pi' > if < e , pi > => < e' , Tee > .
-        
----(
-    var n : hname .
+
+    crl [SEQ2] :
+        < e , pi ; pi' > => < e' , pi' > m if < e , pi > => < e' , Tee > m  .
+
+    var n : hname .		vars i j : aid .
+
     rl [SEND] :
-        < e , v ! n > => < e , Tee > GenerateMSG(e ( self ) ,v,n) .
-)
+        < e , v ! n > => < e , Tee > GenerateMSG(e ( self ), n , e ( v ) ) .
+        
+    eq GenerateMSG(i,n, j) = msg (i,n,j) .
+
 
 
 endm
 
 
 
-	
+
 mod ACTOR is
     pr STMTEXECUTION .
     pr POLICIES .
@@ -61,8 +70,10 @@ mod ACTOR is
     var m : msg .		var db : DB .
     crl [TAKE] :
         db < e , b , Tee > => < e , remove(b,m) , Handler ( db , m . name ) > if m := takePolicy(e,b) /\ b =/= emptyBA .
-    crl [STMTEXECUTION] :
+    crl [STMTEXECUTION_1] :
         db < e , b , pi > => < e' , b , pi' > if < e , pi > => < e' , pi' > /\ pi =/= pi' .
+    crl [STMTEXECUTION_2] :
+        db < e , b , pi > => < e' , b , pi' > m if < e , pi > => < e' , pi' > m /\ pi =/= pi' .
     crl [RECEIVE_A] :
         db < e , b , pi > m => < e , insert(b,m) , pi > if rcvPolicy(b,m) .
 
@@ -149,21 +160,46 @@ mod MAIN is
     pr COMPOSITION .
     ops c1 c2 : -> aid .
     ops handler1 handler2 : -> hname .
+    op self : -> Var .
     subsort Int < aid .
     op fakedb : -> DB .
 
 endm
+
+set print color on .
+set trace on .
+set trace select on .
+trace select ACTOR_PROG_I ACTOR_PROG_II ACTOR_PROG_III COMMUNICATION_I COMMUNICATION_II .
 ---(
-
-rew emptyHL | < mt , emptyAL , < mt , emptyBN > > .
-debug rew < mt , c1 : < mt self : c1 , emptyBA , Tee > , < mt , emptyBN > > .
-
-debug frew in MAIN : c1 . handler1 { c2 ! handler2 ; endH } | < mt , c1 : < mt , emptyBA , Tee > emptyAL , < mt , append( msg(c1,handler1,c1) , emptyBN) > > .
 
 debug rew < mt , append( msg(c1,handler1,c1), emptyBN) > .
 
-debug frew in MAIN : (c1 . handler1 { skip ; endH }) emptyHL | < mt , (c1 : < mt , emptyBA , Tee >) emptyAL , < mt , append( msg(c1,handler1,c1) , emptyBN) > > .
+rew emptyHL | < mt , emptyAL , < mt , emptyBN > > .
 
-debug frew in MAIN : (c1 . handler1 { a1 = a1 + 1 ; endH }) emptyHL | < mt , (c1 : < mt a1 : 3 , emptyBA , Tee >) emptyAL , < mt , append(msg(c1, handler1, c1), append(msg(c1, handler1, c1),emptyBN)) > > .
+debug rew emptyHL | < mt , c1 : < mt self : c1 , emptyBA , Tee > , < mt , emptyBN > > .
+
+
+
+
+frew in MAIN : emptyHL (c1 . handler1 { a2 ! handler2 ; endH }) (c2 . handler2 { a1 = a1 + 3 ; if( a1 < 20 ) { a2 ! handler1 ; endH } else { endH } } )| 
+< mt , 
+(c1 : < mt (a2 : c2)(self : c1 ), emptyBA , Tee >)
+(c2 : < mt (a1 : 0 )(a2 : c1)(self : c2 ) , emptyBA , Tee >)
+emptyAL , 
+
+< mt , append( msg(c1,handler1,c1) , emptyBN) > > .     --- !! never forget self variable 
+
+
+
+frew in MAIN : (c1 . handler1 { skip ; endH }) emptyHL | < mt , (c1 : < mt , emptyBA , Tee >) emptyAL , < mt , append( msg(c1,handler1,c1) , emptyBN) > > .
+
+
+
+frew in MAIN : (c1 . handler1 { a1 = a1 + 1 ; endH }) emptyHL | < mt , (c1 : < mt a1 : 3 , emptyBA , Tee >) emptyAL , < mt , append(msg(c1, handler1, c1), append(msg(c1, handler1, c1),emptyBN)) > > .
+
+
+
+frew in MAIN : (c1 . handler1 { if( a1 > 4 ) { a1 = a1 + 1 ; endH } else { a1 = a1 + 2 } ; endH }) emptyHL | < mt , (c1 : < mt a1 : 3 , emptyBA , Tee >) emptyAL , < mt ,append(msg(c1,handler1,c1), append(msg(c1, handler1, c1), append(msg(c1, handler1, c1),emptyBN))) > > .
+
 
 )

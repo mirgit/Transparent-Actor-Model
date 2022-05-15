@@ -1,15 +1,14 @@
 fmod BUFFERS is
     pr ENVIRONMENT .
     ex HANDLERS .
-    sorts msg trans ACT .
-    ops _! _? : msg -> ACT .
+---    ops _! _? : msg -> ACT .
     op msg : aid hname aid -> msg [ctor] .
     op rcvr : msg -> aid .
     op tag : Env msg -> msg .
     var i j : aid .		var n : hname .		var e : Env .
     eq rcvr(msg(i,n,j)) = j .
     op _. name : msg -> hid .		--- not in paper
-    eq msg(i,n,j) . name = (i . n ) .	--- not in paper
+    eq msg(i,n,j) . name = (j . n ) .	--- not in paper
     eq tag(e,m) = m .
 
     sort bufferActor .

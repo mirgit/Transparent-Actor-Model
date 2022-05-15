@@ -1,7 +1,8 @@
 fmod SYNTAX is
     sorts aid Stmt stmtList netState .
-    
-    op self : -> aid .
+    sorts msg trans .
+---    subsort msg < ACT .
+
     subsort Stmt < stmtList .
     op _;_ : stmtList stmtList -> stmtList .
 endfm
@@ -10,41 +11,50 @@ endfm
 fmod ENVIRONMENT is
     pr SYNTAX .
     inc INT .
-    
+    inc STRING .
     sort Var Env Expr .
     ops a1 a2 a3 a4 a5 a6 : -> Var .
-    subsort Int Var < Expr .
+    subsort Int Var aid < Expr .
     
     op mt : -> Env [ctor] .
     op _:_ : Var Int -> Env .
     op __ : Env Env -> Env [assoc comm] .
     
     
+    op _:_ : Var aid -> Env [ctor] .
+    op _(_) : Env Var -> aid .
+    
+    
     ops _+_ _*_ _-_ : Expr Expr -> Expr [ditto] .
----    ops _<_ _>_ _==_ : Expr Expr -> Expr .			--- !!! uncomment this line, warnings are considered.
+    ops _<_ _>_ _==_ : Expr Expr -> Expr .			--- !!! uncomment this line, warnings are considered.
     
     op eval : Expr Env -> Expr .
     op _(_) : Env Var -> Int .
+
+
     op _[_->_] : Env Var Int -> Env .
     op remove : Env Var -> Env .
 
     
     
     var e : Env .		var v v' : Var .		var i : Int .		var ex ex' : Expr .
+    var j : aid .
 
     eq remove (mt , v) = mt .
     eq remove( (v : i) e , v') = if v == v' then e else (v : i) remove(e,v') fi .
 
     eq e [ v -> i ] = remove(e,v) v : i .
+    
+    ceq eval ( v , (v' : j ) e ) = j if j : aid /\ v == v' [owise] .
 
     eq eval(ex + ex' , e) = eval(ex , e) + eval(ex' , e) .
     eq eval(ex * ex' , e) = eval(ex , e) * eval(ex' , e) .
     eq eval(ex - ex' , e) = eval(ex , e) - eval(ex' , e) .
     eq eval(i , e) = i .
     eq eval(v , (v' : i) e) = if v == v' then i else eval(v,e) fi .
----    eq eval(ex < ex' , e) = if eval(ex,e) < eval (ex' , e) then 1 else 0 fi .			--- !!! uncomment this line, warnings are considered.
----    eq eval(ex > ex' , e) = if eval(ex,e) > eval (ex' , e) then 1 else 0 fi .			--- !!! uncomment this line, warnings are considered.
----    eq eval(ex == ex' , e) = if eval(ex,e) == eval (ex' , e) then 1 else 0 fi .			--- !!! uncomment this line, warnings are considered.
+    eq eval(ex < ex' , e) = if eval(ex,e) < eval (ex' , e) then 1 else 0 fi .			--- !!! uncomment this line, warnings are considered.
+    eq eval(ex > ex' , e) = if eval(ex,e) > eval (ex' , e) then 1 else 0 fi .			--- !!! uncomment this line, warnings are considered.
+    eq eval(ex == ex' , e) = if eval(ex,e) == eval (ex' , e) then 1 else 0 fi .			--- !!! uncomment this line, warnings are considered.
     
     eq e ( v ) = eval ( v , e ) .
 --- ex :  red in ENVIRONMENT : eval ( a1 + 4 , mt a1 : 3) .
