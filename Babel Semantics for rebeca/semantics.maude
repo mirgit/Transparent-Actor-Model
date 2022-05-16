@@ -1,5 +1,5 @@
 load basics.maude
-load Buffer.maude
+load SimpleBuffer.maude
 
 
 mod STMTEXECUTION is
@@ -186,8 +186,18 @@ frew in MAIN : emptyHL (c1 . handler1 { a2 ! handler2 ; endH }) (c2 . handler2 {
 (c1 : < mt (a2 : c2)(self : c1 ), emptyBA , Tee >)
 (c2 : < mt (a1 : 0 )(a2 : c1)(self : c2 ) , emptyBA , Tee >)
 emptyAL , 
-
 < mt , append( msg(c1,handler1,c1) , emptyBN) > > .     --- !! never forget self variable 
+
+
+
+
+frew in MAIN :  emptyHL (c1 . handler1 { a2 ! handler2 ; endH }) (c1 . handler2 { a5 = a5 + 1 ; endH}) (c2 . handler2 { a2 ! handler2 ; endH } )| 
+< mt , 
+(c1 : < mt (a2 : c2)(a5 : 10)(self : c1 ), emptyBA , Tee >)
+(c2 : < mt (a1 : 0 )(a2 : c1)(self : c2 ) , emptyBA , Tee >)
+emptyAL , 
+< mt , append( msg(c1,handler1,c1) , emptyBN) > > . 
+
 
 
 
