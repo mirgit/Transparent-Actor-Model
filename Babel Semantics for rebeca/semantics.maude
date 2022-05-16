@@ -171,9 +171,6 @@ set trace on .
 set trace select on .
 trace select ACTOR_PROG_I ACTOR_PROG_II ACTOR_PROG_III COMMUNICATION_I COMMUNICATION_II .
 ---(
-
-debug rew < mt , append( msg(c1,handler1,c1), emptyBN) > .
-
 rew emptyHL | < mt , emptyAL , < mt , emptyBN > > .
 
 debug rew emptyHL | < mt , c1 : < mt self : c1 , emptyBA , Tee > , < mt , emptyBN > > .
@@ -186,7 +183,7 @@ frew in MAIN : emptyHL (c1 . handler1 { a2 ! handler2 ; endH }) (c2 . handler2 {
 (c1 : < mt (a2 : c2)(self : c1 ), emptyBA , Tee >)
 (c2 : < mt (a1 : 0 )(a2 : c1)(self : c2 ) , emptyBA , Tee >)
 emptyAL , 
-< mt , append( msg(c1,handler1,c1) , emptyBN) > > .     --- !! never forget self variable 
+< mt , append( msg(c1,handler1,c1) , emptyBN) > > .     --- !! never forget self variable for sending messages
 
 
 
