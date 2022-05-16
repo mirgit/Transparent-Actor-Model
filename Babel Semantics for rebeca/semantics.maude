@@ -166,10 +166,11 @@ mod MAIN is
 
 endm
 
+
 set print color on .
-set trace on .
-set trace select on .
-trace select ACTOR_PROG_I ACTOR_PROG_II ACTOR_PROG_III COMMUNICATION_I COMMUNICATION_II .
+---set trace on .
+---set trace eq off .
+---set trace rl on .
 ---(
 rew emptyHL | < mt , emptyAL , < mt , emptyBN > > .
 
