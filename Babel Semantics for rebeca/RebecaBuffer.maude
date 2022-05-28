@@ -2,15 +2,16 @@
 fmod BUFFERS is
     pr ENVIRONMENT .
     ex HANDLERS .
-    sort msg .
     op msg : aid hname aid -> msg [ctor] .
-    op rcvr : msg -> aid .
+    ops sndr rcvr : msg -> aid .
     op tag : Env msg -> msg .
-    var i j : aid .		var n : hname .
+    var i j : aid .		var n : hname .    var e : Env .
     eq rcvr(msg(i,n,j)) = j .
+    eq sndr(msg(i,n,j)) = i .
     op _. name : msg -> hid .		--- not in paper
-    eq msg(i,n,j) . name = (i . n ).	--- not in paper
-    
+    eq msg(i,n,j) . name = (j . n ) .	--- not in paper
+    eq tag(e,m) = m .
+
     
     sort bufferActor .
     op emptyBA : -> bufferActor [ctor] .
@@ -26,7 +27,7 @@ fmod BUFFERS is
     eq insert(q,m) = if not contains (q,m) then append(m,q) else q fi .
     eq head (append ( m,q)) = if q == emptyBA then m else head(q) fi .
     eq remove (emptyBA,m) = emptyBA .
-    eq remove(append(m',q),m) = if m == m' then q else remove(q,m) fi .
+    eq remove(append(m',q),m) = if m == m' then q else append(m',remove(q,m)) fi .
     eq size(emptyBA) = 0 .
     eq size(append(m,q)) = 1 + size(q) .
     eq contains(emptyBA,m) = false .
@@ -41,9 +42,8 @@ fmod BUFFERS is
     op remove : bufferNet msg -> bufferNet .
     op getBuff : bufferNet aid -> bufferActor .
     
-    
     var b : bufferNet .
-    eq insert(emptyBN,m) = emptyBN .
+    eq insert(emptyBN,m) = emptyBN .             --- add (rcvr(m) , insert(emptyBA,m) , emptyBN ) .
     eq insert( add(i,q,b),m) = if rcvr(m) == i then add(i,insert(q,m),b) else add(i,q,insert(b,m)) fi .
     eq remove(emptyBN,m) = emptyBN .
     eq remove(add(i,q,b),m) = if rcvr(m) == i then add(i,remove(q,m),b) else add(i,q,remove(b,m)) fi .
@@ -55,23 +55,14 @@ fmod POLICIES is
     pr BUFFERS .
     op takePolicy : Env bufferActor -> msg .
     op rcvPolicy : bufferActor msg -> Bool .
-    op transferPolicy : Env bufferNet -> msg .
-    op schedPolicy : Env netState aid -> Bool .
+    op transferPolicy : DB bufferNet -> msg .
+    op schedPolicy : Env netState aid -> Bool  .
     
-    
+    var e : Env .		var m : msg .		var b : bufferActor .		var b' : bufferNet .
+    var n : netState .		var i : aid .   var db : DB .
+    ceq transferPolicy((i . h:hname { s:stmtList }) db, b') =  head(getBuff(b',i)) if getBuff(b',i) =/= emptyBA .
+    eq takePolicy (e,b) = head(b) .
+    eq rcvPolicy (b,m) = true .
+    eq schedPolicy(e, n, i) = true .
 
 endfm
-
-
-
-
-
-
-
-
-
-
-
-
-
-
