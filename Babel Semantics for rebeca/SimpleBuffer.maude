@@ -3,10 +3,11 @@ fmod BUFFERS is
     ex HANDLERS .
 ---    ops _! _? : msg -> ACT .
     op msg : aid hname aid -> msg [ctor] .
-    op rcvr : msg -> aid .
+    ops sndr rcvr : msg -> aid .
     op tag : Env msg -> msg .
     var i j : aid .		var n : hname .		var e : Env .
     eq rcvr(msg(i,n,j)) = j .
+    eq sndr(msg(i,n,j)) = i .
     op _. name : msg -> hid .		--- not in paper
     eq msg(i,n,j) . name = (j . n ) .	--- not in paper
     eq tag(e,m) = m .
@@ -23,7 +24,7 @@ fmod BUFFERS is
     eq insert(q,m) = append(m, q) .
     eq head (append(m, q)) = if q == emptyBA then m else head(q) fi .
     eq remove (emptyBA, m) = emptyBA .
-    eq remove(append(m', q) ,m) = if m == m' then q else remove(q,m) fi .
+    eq remove(append(m', q) ,m) = if m == m' then q else append(m' ,remove(q,m) ) fi .
     
 ---(    
     op size : bufferActor -> Int .
@@ -48,7 +49,7 @@ fmod BUFFERS is
     eq insert(b,m) = append(m, b) .
     eq head (append(m, b)) = if b == emptyBN then m else head(b) fi .
     eq remove (emptyBN, m) = emptyBN .
-    eq remove(append(m', b) ,m) = if m == m' then b else remove(b,m) fi .
+    eq remove(append(m', b) ,m) = if m == m' then b else append(m' , remove(b,m)) fi .
     
 ---(
     op add : aid bufferActor bufferNet -> bufferNet [ctor] .
@@ -71,12 +72,12 @@ fmod POLICIES is
     pr BUFFERS .
     op takePolicy : Env bufferActor -> msg .
     op rcvPolicy : bufferActor msg -> Bool .
-    op transferPolicy : Env bufferNet -> msg .
+    op transferPolicy : DB bufferNet -> msg .
     op schedPolicy : Env netState aid -> Bool  .
     
     var e : Env .		var m : msg .		var b : bufferActor .		var b' : bufferNet .
-    var n : netState .		var i : aid .
-    eq transferPolicy(e,b') = head(b') .
+    var n : netState .		var i : aid .   var db : DB .
+    eq transferPolicy(db,b') = head(b') .
     eq takePolicy (e,b) = head(b) .
     eq rcvPolicy (b,m) = true .
     eq schedPolicy(e, n, i) = true .

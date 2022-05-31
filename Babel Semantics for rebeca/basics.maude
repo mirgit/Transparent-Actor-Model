@@ -4,7 +4,7 @@ fmod SYNTAX is
 ---    subsort msg < ACT .
 
     subsort Stmt < stmtList .
-    op _;_ : stmtList stmtList -> stmtList .
+    op _;_ : stmtList stmtList -> stmtList [ prec 50 gather (e E)] .
 endfm
 
 
@@ -13,26 +13,29 @@ fmod ENVIRONMENT is
     inc INT .
     inc STRING .
     sort Var Env Expr .
-    ops a1 a2 a3 a4 a5 a6 : -> Var .
     subsort Int Var aid < Expr .
     
+    op sender : -> Var .
+    op self : -> Var .
+
     op mt : -> Env [ctor] .
-    op _:_ : Var Int -> Env .
-    op __ : Env Env -> Env [assoc comm] .
+    op _:_ : Var Int -> Env [ prec 43 ] .
+    op __ : Env Env -> Env [assoc comm prec 45] .
     
     
-    op _:_ : Var aid -> Env [ctor] .
-    op _(_) : Env Var -> aid .
+    op _:_ : Var aid -> Env [ctor prec 43 ] .
+    op _(_) : Env Var -> aid [ prec 50 ] .
     
     
     ops _+_ _*_ _-_ : Expr Expr -> Expr [ditto] .
     ops _<_ _>_ _==_ : Expr Expr -> Expr .			--- !!! uncomment this line, warnings are considered.
     
     op eval : Expr Env -> Expr .
-    op _(_) : Env Var -> Int .
+    op _(_) : Env Var -> Int [ prec 50 ] .
 
 
-    op _[_->_] : Env Var Int -> Env .
+    op _[_->_] : Env Var Int -> Env [ prec 50 ] .
+    op _[_->_] : Env Var aid -> Env [ prec 50 ] .
     op remove : Env Var -> Env .
 
     
@@ -42,8 +45,10 @@ fmod ENVIRONMENT is
 
     eq remove (mt , v) = mt .
     eq remove( (v : i) e , v') = if v == v' then e else (v : i) remove(e,v') fi .
+    eq remove( (v : j) e , v') = if v == v' then e else (v : j) remove(e,v') fi .
 
     eq e [ v -> i ] = remove(e,v) v : i .
+    eq e [ v -> j ] = remove(e,v) v : j .
     
     ceq eval ( v , (v' : j ) e ) = j if j : aid /\ v == v' [owise] .
 
@@ -66,16 +71,17 @@ fmod HANDLERS is
 ---    pr BUFFERS .
     sort DB hid hname .
     op emptyHL : -> DB [ctor] .
-    op _._ : aid hname -> hid [ctor] .
-    op _{_} : hid stmtList -> DB .
-    op __ : DB DB -> DB [comm assoc] .
+    op _._ : aid hname -> hid [ctor prec 42 ] .
+    op _{_} : hid stmtList -> DB [ prec 50 ] .
+    op __ : DB DB -> DB [comm assoc prec 60 ].
     op Handler : DB hid -> stmtList .
+
     
 
     
     var db : DB .		var i j : aid .		var h h' : hname .		var s : stmtList .
 
-    eq Handler ( (i . h { s } ) db,  j . h' ) = if i . h == j . h' then s else Handler(db, j . h') fi .
+    eq Handler ( i . h { s }  db,  j . h' ) = if i . h == j . h' then s else Handler(db, j . h') fi .
 
 endfm
 
