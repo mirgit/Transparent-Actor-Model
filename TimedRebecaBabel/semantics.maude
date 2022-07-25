@@ -1,0 +1,336 @@
+load basics.maude
+load TimedRebecaBuffer.maude
+
+
+mod STMTEXECUTION is
+    pr SYNTAX .
+    pr BUFFERS .
+    op <_,_> : Env stmtList -> trans .
+    op __ : trans msg -> trans .	
+    op Tee : -> Stmt .
+    op _=_ : Var Expr -> Stmt [prec 45] .
+    op _!_ : Var hname -> Stmt [prec 45] .
+    op if(_) {_} else {_} : Expr stmtList stmtList -> Stmt .
+    op skip : -> Stmt .
+    op endH : -> Stmt . 		--- can empty stmt exist?
+    op _!_after(_) : Var hname Int -> Stmt .                                                       --- NEW
+    op delay(_) : Int -> Stmt .                                                                    --- NEW
+    op resume : -> Stmt .
+
+    op GenerateMSG : aid hname aid Int -> msg .
+
+    var e e' : Env .		vars pi pi' pi1 pi2 : stmtList .
+    var ex : Expr .		var v : Var .      var m : msg .
+    crl [COND1] :
+        < e , if ( ex ) { pi1 } else { pi2 } > => < e' , pi' >
+            if eval( ex,e) > 0 /\ < e , pi1 > => < e' , pi' > .
+
+    crl [COND2] :
+        < e , if ( ex ) { pi1 } else { pi2 } > => < e' , pi' >
+            if eval( ex,e) == 0 /\ < e , pi2 > => < e' , pi' > .
+
+    rl [SKIP] :
+        < e , skip > => < e , Tee > .
+
+    rl [ENDH] :
+        < e , endH > => < e , Tee > .
+
+    rl [ASSIGN] :
+        < e , v = ex > => < e [ v -> eval(ex,e) ] , Tee > .
+
+    crl [SEQ] :
+        < e , pi ; pi' > => < e' , pi' > if < e , pi > => < e' , Tee > .
+
+    crl [SEQ2] :
+        < e , pi ; pi' > => < e' , pi' > m if < e , pi > => < e' , Tee > m  .
+    
+    crl [SEQ3] :
+        < e , pi ; pi' > => < e' , resume ; pi' > if < e , pi > => < e' , resume > .
+
+    var n : hname .		vars i j : aid .    var k : Int .
+
+    rl [SEND] :
+        < e , v ! n > => < e , Tee > GenerateMSG(e ( self ), n , e ( v ) , e ( now ) ) .
+
+
+
+    rl [AFTER] :
+        < e , v ! n after( k ) > => < e , Tee > GenerateMSG(e ( self ), n , e ( v ), eval( now + eval(k,e), e )) .       --- NEW
+
+    rl [DELAY] :
+        < e , delay ( k ) > => < e [ rt -> eval ( now + eval ( k , e ),e ) ] , resume > .                                     --- NEW
+
+    crl [RESUME] :
+        < e , resume > => < e , Tee > if e(now) == e (rt) .
+
+    eq GenerateMSG(i,n, j , k ) = msg (i, n, j, k) .
+
+
+endm
+
+
+
+
+mod ACTOR is
+    pr STMTEXECUTION .
+    pr POLICIES .
+    pr HANDLERS .
+    sort localState actTime .
+    subsort localState < actTime .
+    op __ : localState msg -> localState [prec 50] .
+    op __ : DB localState -> localState [prec 60] .
+    op __ : localState Int -> actTime .			--- prec?
+    op <_,_,_> : Env bufferActor stmtList -> localState .
+
+    var e e' : Env .		var b : bufferActor .		var pi pi' : stmtList .
+    var m : msg .		var db : DB .					var t : Int .
+    crl [TAKE] :
+        db < e , b , Tee > => < e [ sender -> sndr(m) ] , remove(b,m) , Handler ( db , m . name ) > if m := takePolicy(e,b) /\ b =/= emptyBA .
+    crl [STMTEXECUTION_1] :
+        db < e , b , pi > => < e' , b , pi' > if < e , pi > => < e' , pi' > /\ pi =/= pi' .
+    crl [STMTEXECUTION_2] :
+        db < e , b , pi > => < e' , b , pi' > m if < e , pi > => < e' , pi' > m /\ pi =/= pi' .
+    crl [RECEIVE_A] :
+        db < e , b , pi > m => < e , insert(b,m) , pi > if rcvPolicy(b,m) .
+    
+    crl [TIMESYNC_A] :
+        < e , b , pi > t => < e [ now -> t ] , b , pi > if synCondA(e,b,pi, t) .
+
+
+    op synCondA : Env bufferActor stmtList Int -> Bool .
+    ceq synCondA(e,b,pi,t) = true if eval(now,e) < eval(rt,e) and eval(now,e) < t and t <= eval(rt,e)  .
+    ceq synCondA(e,b,pi,t) = true if isEmpty(b) and pi == Tee .
+    eq synCondA(e,b,pi,t) = false [owise] .
+ 
+endm
+
+
+
+mod NETWORK is
+    pr POLICIES .
+
+    sort netTime .
+    subsort netState < netTime .
+    op __ : netState msg -> netState [prec 50] .
+    op __ : DB netState -> netState [prec 60] .
+    op __ : netState Int -> netTime . 				--- prec
+    op <_,_> : Env bufferNet -> netState .
+    var e : Env .		var b : bufferNet .
+    var m : msg .		var db : DB .
+    var t : Int .
+    
+    rl [RECEIVE_N] :
+        db < e , b > m => < e , insert(b, tag(e,m)) > .
+
+    crl [TRANSFER] :
+        db < e , b > => < e , remove(b,m) > m if m := transferPolicy(db,b) /\ b =/= emptyBN .
+
+    crl [TIMESYNC_N] :
+        < e , b > t => < e [ now -> t ] , b > if synCondN(e,b,t) .
+
+
+    op synCondN : Env bufferNet Int -> Bool .
+    ceq synCondN(e,b,t) = true if isEmpty(b) .
+    ceq synCondN(e,b,t) = true if eval(now,e) < t and t <= ar(head(b)) .
+    eq synCondN(e,b,t) = false [owise] .
+endm
+
+
+
+mod COMPOSITION is
+    pr NETWORK .
+    pr ACTOR .
+    
+---    sort WHOLE .
+---    op _|_ : DB Composition -> WHOLE .
+
+    sort actorList Composition .
+    
+    op _:_ : aid localState -> actorList [prec 62 ] .
+    op emptyAL : -> actorList [ctor] .
+    op __ : actorList actorList -> actorList [comm assoc prec 65 ] .
+    op __ : actorList Int -> actorList .
+    op _| <_,_,_> : DB Env actorList netState -> Composition [ prec 70 ].
+    
+    ops start terminate : Env aid -> Env .
+    op _(_) : actorList aid -> localState [ prec 68 ] .
+    op remove : actorList aid -> actorList .
+    op _[_->_] : actorList aid localState -> actorList .
+    op netTimeAgree : netState -> Int .
+    op actTimeAgree : localState -> Int .
+    op actsTimeAgree : actorList -> Int .
+    --- ?op min : Int Int -> Int .
+    
+    var s s' : actorList .
+    var n n' : netState .
+    var s1 s2 : localState .
+    var x y : aid .
+    var e e' e'' e1 e2 : Env . 
+    var db : DB .
+    var b b' : bufferActor .
+    var b2 b'' : bufferNet .
+    var pi pi' : stmtList .
+    var m : msg .
+    var t : Int .
+
+
+    eq remove(emptyAL , x) = emptyAL .
+    eq remove( (x : s1) s,y) = if x == y then s else (x : s1 ) remove(s,y) fi .
+    eq s [ x -> (< e , b , pi >) ] = (x : < e , b , pi >) remove(s,x) .
+    eq x : s1 s ( y ) = if x == y then s1 else s ( y ) fi .
+    eq start(e,x) = e .
+    eq terminate(e,x ) = e .
+
+
+    eq netTimeAgree( < e  , b2 > ) = if isEmpty(b2) then (eval( now, e ) + 1000 ) else ar(head(b2)) fi .
+    eq actsTimeAgree( (x : s1 ) emptyAL ) = actTimeAgree(s1) . 
+    eq actsTimeAgree( (x : s1 ) s ) = min( actTimeAgree(s1) , actsTimeAgree(s)) .
+    eq actTimeAgree (< e , b , Tee >) = if isEmpty(b) then (eval( now, e) + 1000) else max( e ( now ), e ( rt ) ) fi .
+    eq actTimeAgree (< e , b , pi >) = max( e ( now ), e ( rt ) ) .
+
+
+    crl [ACTOR_PROG_I] :
+        db | < e , (x : s1) s , n > => db | < start(e,x) , s [ x -> < e' , b' , pi' > ] , n > if
+             schedPolicy(e,n,x) /\  < e1 , b , pi > := s1  /\  db < e1 , b , pi > => < e' , b' , pi' > .
+    
+    crl [ACTOR_PROG_II] :
+        db | < e , (x : s1) s , n > => db | < e , s [ x -> < e' , b' , pi' > ] , n > if
+            < e1 , b , pi > := s1 /\ db < e1 , b , pi > => < e' , b' , pi' > .
+            
+    crl [ACTOR_PROG_III] :
+        db | < e , (x : s1) s , n > => db | < terminate(e , x) , s [ x -> < e' , b' , pi' > ] , n > if
+            < e1 , b , endH > := s1 /\ db < e1 , b , endH > => < e' , b' , pi' > .
+            
+    crl [COMMUNICATION_I] :
+        db | < e , (x : s1) s , n > => db | < e , s [ x -> < e' , b' , pi' > ] , < e'' , b'' > > if
+            < e1 , b , pi > := s1 /\ db < e1 , b , pi > => < e' , b' , pi' > m /\  < e2 , b2 > := n /\ db < e2 , b2 > m => < e'' , b'' > .
+             
+    crl [COMMUNICATION_II] :
+        db | < e , s , n > => db | < e , s [ y -> < e' , b' , pi' > ] , < e'' , b'' > > if
+            < e2 , b2 > := n /\ db < e2 , b2 > => < e'' , b'' > m /\ y := rcvr(m) /\ < e1 , b , pi > := s ( y ) /\ db < e1 , b , pi > m => < e' , b' , pi' > .
+    
+    crl [TIMEPROG] :
+        db | < e , s , n > => db | < e[ now -> t ] , s' , n' > if t := min(netTimeAgree(n),actsTimeAgree(s)) /\ t > eval(now, e) /\ n t => n' /\ s t => s' .
+
+    crl [HelpTIMEPROG] :
+        ((x : s1) s) t => ((x : s2) s') if s1 t => s2 /\ s t => s' .
+
+    rl [HelpTIMEPROG_II] :
+        emptyAL t => emptyAL .
+endm
+
+
+mod MAIN is
+    pr COMPOSITION .
+    ops a1 a2 a3 a4 a5 a6 : -> Var .
+    ops c1 c2 : -> aid .
+    ops handler1 handler2 : -> hname .
+    op self : -> Var .
+---    subsort Int < aid .
+    op fakedb : -> DB .
+
+endm
+
+set print color on .
+break select ACTOR_PROG_I ACTOR_PROG_II ACTOR_PROG_III COMMUNICATION_I COMMUNICATION_II TIMEPROG .
+---set break on .
+---set trace on .
+---set trace eq off .
+---set trace rl on .
+---(
+
+
+
+    crl [TIMESYNC_A] :
+        < e , b , pi > => < e [ now -> t ] , b , pi > if syncCond(e,b,t) .
+
+    crl [TIMESYNC_N] :
+        < e , b > => < e [ now -> t ] , b > if syncCond(e,b,t) .
+
+    crl [TIMEPROG] :
+        db | < e , s , n > => db | < e[ now -> t ] , s' , n' > if t := min(netTimeAgree(n),actTimeAgree(s)) /\ n t => n' /\ s t => s' .
+
+    cre [HelpTIMEPROG] :
+        ((x : s1) s ) t => (x : s2) (s' t) if s1 t => s2 /\ s t => s' .
+    rl [HelpTIMEPROG_II] :
+        emptyHL t => emptyHL .
+
+
+
+
+rew emptyHL | < mt , emptyAL , < mt , emptyBN > > .
+
+debug rew emptyHL | < mt , c1 : < mt self : c1 , emptyBA , Tee > , < mt , emptyBN > > .
+
+
+
+
+frew in MAIN : (c1 . handler1 { a1 = a1 + 1 ; delay ( 4 ) ; endH }) emptyHL | < mt now : 0 , (c1 : < mt now : 0 a1 : 3 , emptyBA , Tee >) emptyAL , < mt now : 0 , append(msg(c1, handler1, c1, 2), emptyBN)> > .
+
+frew in MAIN : emptyHL | < mt now : 4 , (c1 : < mt now : 4 rt : 4 a1 : 3 , emptyBA , resume ; endH  >) emptyAL , < mt now : 4 , emptyBN > > .
+
+frew in MAIN : (c1 . handler1 { a1 = a1 + 1 ; endH }) emptyHL | < mt , (c1 : < mt (a1 : 3)(self : c1) , emptyBA , ( self ! handler1 ); endH >) emptyAL , < mt , add(c1,emptyBA,emptyBN) > > .
+
+
+frew in MAIN : (c1 . handler1 { if( a1 > 4 ) { a1 = a1 + 1 ; endH } else { a1 = a1 + 2 } ; endH }) emptyHL | < mt , (c1 : < mt a1 : 3 , emptyBA , Tee >) emptyAL , < mt ,append(msg(c1,handler1,c1), append(msg(c1, handler1, c1), append(msg(c1, handler1, c1),emptyBN))) > > .
+
+
+
+frew in MAIN : (c1 . handler1 { self ! handler1 ; endH }) emptyHL | < mt , (c1 : < mt self : c1 , emptyBA , Tee >) emptyAL , < mt , append( msg(c1,handler1,c1) , emptyBN) > > .
+
+
+
+
+frew in MAIN : emptyHL (c1 . handler1 { a2 ! handler2 after ( 4 ) ; endH }) (c2 . handler2 { a1 = a1 + 1 ; if( a1 < 20 ) { a2 ! handler1 after ( 4 ) ; endH } else { endH } } )| 
+< mt now : 0 , 
+(c1 : < mt (now : 0)(a2 : c2)(self : c1 ), emptyBA , Tee >)
+(c2 : < mt (now : 0)(a1 : 0 )(a2 : c1)(self : c2 ) , emptyBA , Tee >)
+emptyAL , 
+< mt now : 0 , append( msg(c1,handler1,c1,0) , emptyBN) > > .     --- !! never forget self variable for sending messages
+
+===>
+
+frew in MAIN : emptyHL (c1 . handler1 { a2 ! handler2 ; endH }) (c2 . handler2 { a1 = a1 + 3 ; if( a1 < 20 ) { a2 ! handler1 ; endH } else { endH } } )| 
+< mt , 
+(c1 : < mt (a2 : c2)(self : c1 ), emptyBA , self ! handler1 >)
+(c2 : < mt (a1 : 0 )(a2 : c1)(self : c2 ) , emptyBA , Tee >)
+emptyAL , 
+< mt , add(c1,emptyBA,add(c2,emptyBA, emptyBN)) > > . 
+
+
+
+
+
+
+frew in MAIN : emptyHL c1 . handler1 { a2 ! handler2 ; endH } c2 . handler2 { a1 = a1 + 3 ; if( a1 < 20 ) { a2 ! handler1 ; endH } else { endH } } | 
+< mt , 
+c1 : < mt   a2 : c2   self : c1 , emptyBA , self ! handler1 >
+c2 : < mt   a1 : 0   a2 : c1  self : c2  , emptyBA , Tee >
+emptyAL , 
+< mt , add(c1,emptyBA,add(c2,emptyBA, emptyBN)) > > . 
+
+
+
+
+
+
+
+frew in MAIN :  emptyHL (c1 . handler1 { (a2 ! handler2) ; (endH) }) (c1 . handler2 { (a5 = a5 + 1) ; (endH)}) (c2 . handler2 { (a2 ! handler2) ; (endH) } )| 
+< mt , 
+(c1 : < mt (a2 : c2)(a5 : 10)(self : c1 ), emptyBA , Tee >)
+(c2 : < mt (a1 : 0 )(a2 : c1)(self : c2 ) , emptyBA , Tee >)
+emptyAL , 
+< mt , add(c2,emptyBA,add(c1,append(msg(c1,handler1,c1),emptyBA) , emptyBN)) > > . 
+
+===>
+
+
+frew in MAIN :  emptyHL (c1 . handler1 { a2 ! handler2 ; endH }) (c1 . handler2 { a5 = a5 + 1 ; endH}) (c2 . handler2 { a2 ! handler2 ; endH } )| 
+< mt , 
+(c1 : < mt (a2 : c2)(a5 : 10)(self : c1 ), emptyBA , self ! handler1 >)
+(c2 : < mt (a1 : 0 )(a2 : c1)(self : c2 ) , emptyBA , Tee >)
+emptyAL , 
+< mt , add(c1,emptyBA,add(c2,emptyBA, emptyBN))  > > . 
+
+
+)

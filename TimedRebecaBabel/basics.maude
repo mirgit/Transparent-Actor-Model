@@ -1,0 +1,110 @@
+fmod SYNTAX is
+    sorts aid Stmt stmtList netState .
+    sorts msg trans .
+---    subsort msg < ACT .
+
+    subsort Stmt < stmtList .
+    op _;_ : stmtList stmtList -> stmtList [ prec 50 gather (e E)] .
+endfm
+
+
+fmod ENVIRONMENT is
+    pr SYNTAX .
+    inc INT .
+    inc STRING .
+    sort Var Env Expr .
+    subsort Int Var aid < Expr .
+    
+    ops sender self rt now : -> Var .                   --- !!! different across languages
+
+    op mt : -> Env [ctor] .
+    op _:_ : Var Int -> Env [ prec 43 ] .
+    op __ : Env Env -> Env [assoc comm prec 45] .
+    
+    
+    op _:_ : Var aid -> Env [ctor prec 43 ] .
+    op _(_) : Env Var -> aid [ prec 50 ] .
+    
+    
+    ops _+_ _*_ _-_ : Expr Expr -> Expr [ditto] .
+    ops _<_ _>_ _==_ : Expr Expr -> Expr .			--- !!! uncomment this line, warnings are considered.
+    
+    op eval : Expr Env -> Expr .
+    op _(_) : Env Var -> Int [ prec 50 ] .
+
+
+    op _[_->_] : Env Var Int -> Env [ prec 50 ] .
+    op _[_->_] : Env Var aid -> Env [ prec 50 ] .
+    op remove : Env Var -> Env .
+
+    
+    
+    var e : Env .		var v v' : Var .		var i : Int .		var ex ex' : Expr .
+    var j : aid .
+
+    eq remove (mt , v) = mt .
+    eq remove( (v : i) e , v') = if v == v' then e else (v : i) remove(e,v') fi .
+    eq remove( (v : j) e , v') = if v == v' then e else (v : j) remove(e,v') fi .
+
+    eq e [ v -> i ] = remove(e,v) v : i .
+    eq e [ v -> j ] = remove(e,v) v : j .
+    
+    ceq eval ( v , (v' : j ) e ) = j if j : aid /\ v == v' [owise] .
+
+    eq eval(ex + ex' , e) = eval(ex , e) + eval(ex' , e) .
+    eq eval(ex * ex' , e) = eval(ex , e) * eval(ex' , e) .
+    eq eval(ex - ex' , e) = eval(ex , e) - eval(ex' , e) .
+    eq eval(i , e) = i .
+    eq eval(v , (v' : i) e) = if v == v' then i else eval(v,e) fi .
+    eq eval(ex < ex' , e) = if eval(ex,e) < eval (ex' , e) then 1 else 0 fi .			--- !!! uncomment this line, warnings are considered.
+    eq eval(ex > ex' , e) = if eval(ex,e) > eval (ex' , e) then 1 else 0 fi .			--- !!! uncomment this line, warnings are considered.
+    eq eval(ex == ex' , e) = if eval(ex,e) == eval (ex' , e) then 1 else 0 fi .			--- !!! uncomment this line, warnings are considered.
+    
+    eq e ( v ) = eval ( v , e ) .
+--- ex :  red in ENVIRONMENT : eval ( a1 + 4 , mt a1 : 3) .
+
+endfm
+
+fmod HANDLERS is
+    ex ENVIRONMENT .
+---    pr BUFFERS .
+    sort DB hid hname .
+    op emptyHL : -> DB [ctor] .
+    op _._ : aid hname -> hid [ctor prec 42 ] .
+    op _{_} : hid stmtList -> DB [ prec 50 ] .
+    op __ : DB DB -> DB [comm assoc prec 60 ].
+    op Handler : DB hid -> stmtList .
+
+    
+
+    
+    var db : DB .		var i j : aid .		var h h' : hname .		var s : stmtList .
+
+    eq Handler ( i . h { s }  db,  j . h' ) = if i . h == j . h' then s else Handler(db, j . h') fi .
+
+endfm
+
+
+---(
+fmod HANDLERS is
+    ex ENVIRONMENT .
+---    pr BUFFERS .
+    sort DB hid hname .
+    
+    op _:{_} : hname stmtList -> Env .
+    op _(_) : Env hname -> stmtList .
+
+    
+    op _{_} : hid stmtList -> DB .
+    op __ : DB DB -> DB .
+    op Handler : Env hid -> stmtList .
+    op _._ : aid hname -> hid .
+    
+    var e : Env .		var v : Var .		var i : Int .
+    var id : aid .		var h h' : hname .		var s : stmtList .
+    
+    eq (h' : { s } ) e ( h ) = if h' == h then s else e ( h ) fi .
+    eq (v : i) e ( h ) = e ( h ) .
+    eq Handler ( e,  id . h ) = e ( h ) .
+
+endfm)
