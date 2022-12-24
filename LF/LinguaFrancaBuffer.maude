@@ -1,0 +1,106 @@
+
+fmod BUFFERS is
+    pr ENVIRONMENT .
+    ex HANDLERS .
+
+    sort time .
+
+    op msg : aid hname Int time -> msg [ctor] .
+    op _. name : msg -> hid .
+    ops rcvr value : msg -> aid .
+    op tag : Env msg -> msg .
+    op ar : msg -> time .		--- ?
+    op msgPriority : msg -> Int .
+    op portPriority : hid -> Int .
+
+    vars i j : aid .		vars h' h : hname .	    var e : Env .	vars n k l o : Int .
+    vars m m' : msg .
+
+    op (_,_) : Int Int -> time .
+    op first : time -> Int .
+ ---   op third : dest -> Int .
+	ops _<_ _>_ : time time -> Bool .
+
+
+    eq (k,l) > (n,o) = if k =/= n then k > n else l > o fi .
+    eq (k,l) < (n,o) = if k =/= n then k < n else l < o fi .
+    eq first(k,l) = k .
+ ---   eq third((i,h,k)) = k .
+
+    eq rcvr(msg(i,h,n,k,l)) = i .
+    eq value(msg(i,h,n,k,l)) = n .
+---    eq sndr(msg(i,h,n,k,l)) = i .
+    eq ar(msg(i,h,n,k,l)) = (k ,l).
+    eq msg(i,h,n,k,l) . name = (i . h) .
+
+    ceq tag(e,msg(i,h,n,k,l)) = msg(j,h',n,((e(Stime)),((e(Mtime)) + 1))) if (j,h',o) := map(e(topo),i,h) /\ o == 0 .
+    ceq tag(e,msg(i,h,n,k,l)) = msg(j,h',n,((e(Stime)) + o) ,(e(Mtime))) if (j,h',o) := map(e(topo),i,h) /\ o =/= 0 .
+    eq msgPriority(msg(i,h,n,k,l))= portPriority(i . h) .
+
+
+	sort bufferActor .
+	op emptyBA : -> bufferActor [ctor] .
+	op append : msg bufferActor -> bufferActor [ctor] .
+	op insert : bufferActor msg -> bufferActor .
+	op remove : bufferActor msg -> bufferActor .
+	op peek : bufferActor -> msg .
+	op size : bufferActor -> Int .
+	op isEmpty : bufferActor -> Bool .
+
+	var q : bufferActor .
+
+	eq insert(emptyBA,m) = append(m,emptyBA) .
+	eq insert(append(m,q),m') = if msgPriority(m') > msgPriority(m) then append(m',append(m,q)) else append(m,insert(q,m')) fi .
+	eq remove(emptyBA,m) = emptyBA .
+	eq remove(append(m',q),m) = if m == m' then q else append(m',remove(q,m)) fi .
+	eq peek(append(m,q)) = m .
+	eq size(emptyBA) = 0 .
+	eq size(append(m,q)) = 1 + size(q) .
+	eq isEmpty(q) = size(q) == 0 .
+
+
+	sort bufferNet .
+	op emptyBN : -> bufferNet [ctor] .
+	op append : msg bufferNet -> bufferNet [ctor] .
+	op insert : bufferNet msg -> bufferNet .
+	op remove : bufferNet msg -> bufferNet .
+	op peek : bufferNet -> msg .
+	op size : bufferNet -> Int .
+	op isEmpty : bufferNet -> Bool .
+
+	var b : bufferNet .
+
+	eq insert(emptyBN,m) = append(m,emptyBN) .
+	eq insert(append(m,b),m') = if ar(m') > ar(m) then append(m,insert(b,m')) else append(m',append(m,b)) fi .
+	eq remove(emptyBN,m) = emptyBN .
+	eq remove(append(m',b),m) = if m == m' then b else append(m',remove(b,m)) fi .
+	eq peek(append(m,b)) = m .
+	eq size(emptyBN) = 0 .
+	eq size(append(m,q)) = 1 + size(q) .
+	eq isEmpty(b) = size(b) == 0 .
+
+
+endfm
+
+
+
+fmod POLICIES is
+    pr BUFFERS .
+    op takePolicy : Env bufferActor -> msg .
+    op rcvPolicy : bufferActor msg -> Bool .
+    op transferPolicy : Env bufferNet -> msg .
+    op schedPolicy : Env netState aid -> Bool  .
+
+    
+    vars e e' : Env .		var m : msg .		var b : bufferActor .		var b' : bufferNet .
+    var i : aid .   var db : DB .				vars t : Int .
+
+    eq transferPolicy(e, b') =  peek(b') . --- peek(b)
+    eq takePolicy (e,b) = peek(b) .	
+    eq rcvPolicy (b,m) = true .
+    eq schedPolicy(e, n:netState , i) = true .
+---    					if : ar(peek(b') > e' ( now )	/\
+
+
+
+endfm

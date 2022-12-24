@@ -1,0 +1,83 @@
+
+mod BUFFERS is
+    pr ENVIRONMENT .
+    ex HANDLERS .
+    op msg : aid hname aid -> msg [ctor] .
+    ops sndr rcvr : msg -> aid .
+    op tag : Env msg -> msg .
+    var i j : aid .		var n : hname .    var e : Env .
+    eq rcvr(msg(i,n,j)) = j .
+    eq sndr(msg(i,n,j)) = i .
+    op _. name : msg -> hid .		--- not in paper
+    eq msg(i,n,j) . name = (j . n ) .	--- not in paper
+    eq tag(e,m) = m .
+
+    
+    sort bufferActor .
+    op emptyBA : -> bufferActor [ctor] .
+    op append : msg bufferActor -> bufferActor [ctor] .
+    op insert : bufferActor msg -> bufferActor .
+    op head : bufferActor -> msg .
+    op remove : bufferActor msg -> bufferActor .
+    op size : bufferActor -> Int .
+    op contains : bufferActor msg -> Bool .
+    
+    vars m m' : msg .		var q : bufferActor .
+    
+    eq insert(q,m) = append(m,q) . --- if not contains (q,m) then append(m,q) else q fi .
+    eq head (append ( m,q)) = if q == emptyBA then m else head(q) fi .
+    eq remove (emptyBA,m) = emptyBA .
+    eq remove(append(m',q),m) = if m == m' then q else append(m',remove(q,m)) fi .
+    eq size(emptyBA) = 0 .
+    eq size(append(m,q)) = 1 + size(q) .
+    eq contains(emptyBA,m) = false .
+    eq contains(append(m',q),m) = if m == m' then true else contains(q,m) fi .
+    
+    
+    
+    sort bag bufferNet .
+    op buf : aid bufferActor -> bag .
+    subsort bag < bufferNet .
+    op emptyBN : -> bufferNet [ctor] .
+    op _\_ : bufferNet bufferNet -> bufferNet [ctor assoc] .
+    op I_ : bufferNet -> bufferNet .
+    op insert : bufferNet msg -> bufferNet .
+    op remove : bufferNet msg -> bufferNet .
+    op getBuff : bufferNet aid -> bufferActor .
+    op empty : bufferNet -> Bool .
+
+    vars b b' : bufferNet .
+    eq insert(emptyBN,m) = buf(rcvr(m),insert(emptyBA,m)) \ emptyBN .             --- add (rcvr(m) , insert(emptyBA,m) , emptyBN ) .
+    eq insert((emptyBN \ b),m) = insert((b \ emptyBN),m) .
+    eq insert( (buf(i,q) \ b),m) = if rcvr(m) == i then (buf(i,insert(q,m)) \ b) else (buf(i,q) \ insert(b,m)) fi .
+    eq remove((emptyBN \ b),m) = remove((b \ emptyBN),m) .
+    eq remove(emptyBN,m) = emptyBN .
+    eq remove((buf(i,q) \ b),m) = if rcvr(m) == i then (buf(i,remove(q,m)) \ b) else (buf(i,q) \ remove(b,m)) fi .
+    eq getBuff((buf(i,q) \ b),j) = if i == j then q else getBuff(b,j) fi .
+    eq getBuff((emptyBN \ b),j) = getBuff((b \ emptyBN),j) .
+    eq getBuff(emptyBN,i) = emptyBA .
+    eq empty((emptyBN \ b)) = empty(b \ emptyBN) .
+    ceq empty((buf(i,q) \ b)) = empty(b) if q == emptyBA .
+    eq empty(emptyBN) = true .
+    eq empty(b) = false [owise] .
+
+    crl [shuffle_BN] :
+        I b \ b' => b' \ b if empty(b \ b') == false .
+
+endm
+
+mod POLICIES is
+    pr BUFFERS .
+    op takePolicy : Env bufferActor -> msg .
+    op rcvPolicy : bufferActor msg -> Bool .
+    op transferPolicy : Env bufferNet -> msg .
+    op schedPolicy : Env netState aid -> Bool  .
+    
+    var e : Env .		var m : msg .		var b : bufferActor .		var b' : bufferNet .
+    var n : netState .		var i : aid .   var db : DB .   var t : topology .
+    eq transferPolicy(e (topo: (i t) ), b') =  if getBuff(b',i) =/= emptyBA then head(getBuff(b',i)) else transferPolicy(e (topo: (t)),b') fi .
+    eq takePolicy (e,b) = head(b) .
+    eq rcvPolicy (b,m) = true .
+    eq schedPolicy(e, n, i) = true .
+
+endm

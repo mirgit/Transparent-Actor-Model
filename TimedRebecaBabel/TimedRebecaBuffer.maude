@@ -1,5 +1,5 @@
 
-fmod BUFFERS is
+mod BUFFERS is
     pr ENVIRONMENT .
     ex HANDLERS .
     op msg : aid hname aid Int -> msg [ctor] .
@@ -14,69 +14,77 @@ fmod BUFFERS is
     eq sndr(msg(i,n,j,k)) = i .
     eq ar(msg(i,n,j,k)) = k .
     eq msg(i,n,j,k) . name = (j . n ) .
-    eq tag(e,m) = m .						--- change later
+    eq tag(e,msg(i,n,j,k)) = msg(i,n,j,k) .
 
-
-
+    subsort msg < bufferActor .
     sort bufferActor .
     op emptyBA : -> bufferActor [ctor] .
-    op append : msg bufferActor -> bufferActor [ctor] .
+    op _/_ : bufferActor bufferActor -> bufferActor [ctor assoc] .
     ops remove insert : bufferActor msg -> bufferActor .
     op include : msg bufferActor -> Bool .
     op isEmpty : bufferActor -> Bool .
 
 
-    vars m m' : msg .		var q : bufferActor .
 
-    eq insert(q, m) = append(m, q) .
+    vars m m' : msg .		vars q q' : bufferActor .
+
+    eq (emptyBA / q) = (q / emptyBA) .
+
+    eq insert(q, m) = (m / q) .
     eq remove(emptyBA, m) = emptyBA .
-    eq remove(append(m', q),m) = if m == m' then q else append(m',remove(q, m)) fi .
+    eq remove((m' / q),m) = if m == m' then q else (m' / remove(q, m)) fi .
     eq include(m,emptyBA) = false .
-    eq include(m,append(m', q)) = if m == m' then true else include(m,q) fi .
+    eq include(m,(m' / q)) = if m == m' then true else include(m,q) fi .
     eq isEmpty(q) = (q == emptyBA) .
 
     op head : bufferActor -> msg .										--- NEW
-    eq head(append(m,emptyBA)) = m .
-    eq head(append(m,q)) = if ar(m) < ar(head(q)) then m else head(q) fi .
+    eq head((m / emptyBA)) = m .
+    eq head((m / q)) = if ar(m) < ar(head(q)) then m else head(q) fi .
 
     sort bufferNet .
+    subsort msg < bufferNet .
     op emptyBN : -> bufferNet [ctor] .
-    op append : msg bufferNet -> bufferNet [ctor] .
+    op _\_ : bufferNet bufferNet -> bufferNet [ctor assoc] .
     ops remove insert : bufferNet msg -> bufferNet .
     op include : msg bufferNet -> Bool .
-    op isEmpty : bufferNet -> Bool .
+    op empty : bufferNet -> Bool .
 
-    var b : bufferNet .
+    vars b b' : bufferNet .
+    eq (emptyBN \ b) = (b \ emptyBN) .
 
-    eq insert(b, m) = append(m, b) .
+    eq insert(b, m) = (m \ b) .
     eq remove(emptyBN, m) = emptyBN .
-    eq remove(append(m', b),m) = if m == m' then b else append(m',remove(b, m)) fi .
+    eq remove((m' \ b),m) = if m == m' then b else (m' \ remove(b, m)) fi .
     eq include(m,emptyBN) = false .
-    eq include(m,append(m', b)) = if m == m' then true else include(m,b) fi .
-    eq isEmpty(b) = (b == emptyBN) .
+    eq include(m,(m' \ b)) = if m == m' then true else include(m,b) fi .
+    eq empty(b) = (b == emptyBN) .
 
     op head : bufferNet -> msg .
-    eq head(append(m,emptyBN)) = m .
-    eq head(append(m,b)) = if ar(m) < ar(head(b)) then m else head(b) fi .
+    eq head((m \ emptyBN)) = m .
+    eq head((m \ b)) = if ar(m) < ar(head(b)) then m else head(b) fi .
 
-    
-endfm
+    rl [shuffle_bufA] :
+        q / q' => q' / q .
 
-fmod POLICIES is
+    rl [shuffle_bufN] :
+        b \ b' => b' \ b .
+endm
+
+mod POLICIES is
     pr BUFFERS .
     op takePolicy : Env bufferActor -> msg .
     op rcvPolicy : bufferActor msg -> Bool .
-    op transferPolicy : DB bufferNet -> msg .
+    op transferPolicy : Env bufferNet -> msg .
     op schedPolicy : Env netState aid -> Bool  .
 
     
     var e : Env .		var m : msg .		var b : bufferActor .		var b' : bufferNet .
     var n : netState .		var i : aid .   var db : DB .				vars t : Int .
-
-    eq transferPolicy((i . h:hname { s:stmtList }) db, b') =  head(b') .
+    
+    ceq transferPolicy(e , b') =  m if m := head(b') /\ ar(m) == e(now) .
     eq takePolicy (e,b) = head(b) .
     eq rcvPolicy (b,m) = true .
     eq schedPolicy(e, n, i) = true .
 
 
-endfm
+endm

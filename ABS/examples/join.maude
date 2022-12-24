@@ -1,0 +1,67 @@
+load semantics.maude
+load model-checker.maude
+
+mod MAIN is
+    pr COMPOSITION .
+    ops sender self dest val : -> Var .
+    ops a b c d : -> aid .
+    ops Const mes1 mes2 mes3 out : -> hname .
+    var i : Int .
+    op initialState : -> Composition .
+    eq handler(a . Const) = (dest ! mes1 ; endH) .
+    eq handler(b . Const) = (dest ! mes2 ; endH) .
+    eq handler(c . Const) = (dest ! mes3 ; endH) .
+    eq handler(d . mes1) =  (if(val == 0) { val = 10} else { if(val == 1) {val = 3} else {val = 25} } ; endH) .    
+    eq handler(d . mes2) =  (val = val + 1 ; endH) .
+    eq handler(d . mes3) =  (val = val * 2 	; endH) .
+	eq initialState =	
+	< mt Cog: (g(a b c deftop) : 0 g(d deftop) : 0 defagroup) , 
+	(a : < mt  (self : a) (dest : d) ,  cntr(msg(a,Const,a),1) / emptyBA , Tee >)
+	(b : < mt  (self : b) (dest : d) ,  cntr(msg(b,Const,b),1) / emptyBA , Tee >)
+	(c : < mt  (self : c) (dest : d) ,  cntr(msg(c,Const,c),1) / emptyBA , Tee >)
+	(d : < mt  (self : d) (val : 0) , emptyBA , Tee >)	
+	emptyAL ,
+	
+	< mt topo: (a b c d deftop) , emptyBN > > .
+
+endm
+
+
+search in MAIN : initialState =>! cc:Composition .
+
+
+--- frew [100] in MAIN : initialState .
+
+---(
+mod DF-pred is
+	pr MAIN .
+	inc SATISFACTION .
+	including MODEL-CHECKER .
+	including LTL-SIMPLIFIER .
+	subsort Composition < State .
+	
+
+	ops tr1onBr tr2onBr progt1 progt2 progc : -> Prop .
+
+	var db : DB .			var a : actorList .		var x : bufferActor .		var y : stmtList .
+	var e e1  : Env .			var n : netState . 
+
+	eq (< e , a (tr1 : < e1 (prog : 1)  , x , y >) , n >) |= progt1 = true .
+	eq (< e , a (tr2 : < e1 (prog : 1)  , x , y >) , n >) |= progt2 = true .
+	eq (< e , a (controller : < e1 (prog : 1)  , x , y >) , n >) |= progc = true .
+	eq (< e , a (tr1 : < e1 (onBr : 1)  , x , y >) , n >) |= tr1onBr = true .
+	eq (< e , a (tr2 : < e1 (onBr : 1)  , x , y >) , n >) |= tr2onBr = true .
+	eq c:Composition |= p:Prop = false [owise] .
+
+
+endm)
+---starvation: 
+--- red modelCheck(initialState, [] ( (<> tr1onBr) /\ (<> tr2onBr) ) ) .
+--- red modelCheck(initialState, ([] <> progt1 /\ [] <> progt2 /\ [] <> progc) => ( ([] <> tr1onBr) /\ ([] <> tr2onBr) ) ) .
+---safety: 
+--- red modelCheck(initialState, [] (~(tr1onBr /\ tr2onBr))) .
+
+
+--- search [1,100] in MAIN : initialState =>* < e1:Env , a:actorList tr1 : < e2:Env onBr : 1 , x:bufferActor , y:stmtList > tr2 : < e3:Env onBr : 1 , x:bufferActor , y:stmtList > , n:netState > .
+
+--- show search graph .

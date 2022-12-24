@@ -11,18 +11,19 @@ endfm
 fmod ENVIRONMENT is
     pr SYNTAX .
     inc INT .
-    inc STRING .
+---    inc STRING .
     sort Var Env Expr .
     subsort Int Var aid < Expr .
     sort topology .
+    op deftop : -> topology .
 
     subsort aid < topology .                        --- network stores topology/actors list/...
     op __ : topology topology -> topology [assoc comm] .
     op topo:_ : topology -> Env .
 
 
-
-    ops sender self rt now : -> Var .                   --- !!! different across languages
+    op sender : -> Var .
+    op self : -> Var .
 
     op mt : -> Env [ctor] .
     op _:_ : Var Int -> Env [ prec 43 ] .
@@ -81,8 +82,6 @@ fmod HANDLERS is
     op _{_} : hid stmtList -> DB [ prec 50 ] .
     op __ : DB DB -> DB [comm assoc prec 60 ].
     op Handler : DB hid -> stmtList .
-
-    op handler : Env hid -> stmtList .
 
     op handler : hid -> stmtList .
 

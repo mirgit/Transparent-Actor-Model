@@ -14,16 +14,27 @@ fmod ENVIRONMENT is
     inc STRING .
     sort Var Env Expr .
     subsort Int Var aid < Expr .
-    sort topology .
 
-    subsort aid < topology .                        --- network stores topology/actors list/...
-    op __ : topology topology -> topology [assoc comm] .
-    op topo:_ : topology -> Env .
+    sort aidlist .
+    op endlist : -> aidlist .
+    op __ : aid aidlist -> aidlist .
+    op pty:_ : aidlist -> Env .
+    op _(pty) : Env -> aidlist .
 
+    var p : aidlist .     vars j' j : aid .	    var e : Env .
+
+    eq ((pty: p) e)(pty) = p .
+    eq (V:Var : i:aid e)(pty) = e(pty) .
+    eq (V:Var : z:Int e)(pty) = e(pty) .
+
+    op Hpty(_,_) : aidlist aid -> aidlist .
+
+    eq Hpty(j' p,j) = if j == j' then endlist else (j' Hpty(p,j)) fi .
+    eq Hpty(endlist,j) = endlist .
 
 
     ops sender self rt now : -> Var .                   --- !!! different across languages
-
+    ops Stime Mtime : -> Var .
     op mt : -> Env [ctor] .
     op _:_ : Var Int -> Env [ prec 43 ] .
     op __ : Env Env -> Env [assoc comm prec 45] .
@@ -34,7 +45,7 @@ fmod ENVIRONMENT is
     
     
     ops _+_ _*_ _-_ : Expr Expr -> Expr [ditto] .
-    ops _<_ _>_ _==_ : Expr Expr -> Expr .			--- !!! uncomment this line, warnings are considered.
+    ops _<_ _>_ _==_ : Expr Expr -> Expr .			--- !!! uncomment this line, warnings are considered.f
     
     op eval : Expr Env -> Expr .
     op _(_) : Env Var -> Int [ prec 50 ] .
@@ -46,8 +57,7 @@ fmod ENVIRONMENT is
 
     
     
-    var e : Env .		var v v' : Var .		var i : Int .		var ex ex' : Expr .
-    var j : aid .
+	var v v' : Var .		var i : Int .		var ex ex' : Expr .
 
     eq remove (mt , v) = mt .
     eq remove( (v : i) e , v') = if v == v' then e else (v : i) remove(e,v') fi .
@@ -75,21 +85,38 @@ endfm
 fmod HANDLERS is
     ex ENVIRONMENT .
 ---    pr BUFFERS .
+    sort topology dest .	
     sort DB hid hname .
     op emptyHL : -> DB [ctor] .
     op _._ : aid hname -> hid [ctor prec 42 ] .
     op _{_} : hid stmtList -> DB [ prec 50 ] .
     op __ : DB DB -> DB [comm assoc prec 60 ].
     op Handler : DB hid -> stmtList .
-
-    op handler : Env hid -> stmtList .
-
-    op handler : hid -> stmtList .
+    op handler(_)(_) : hid Int -> stmtList .
+    
 
     
     var db : DB .		var i j : aid .		var h h' : hname .		var s : stmtList .
+	var  t : topology .	vars a1 a2 a3 : aid .	vars h1 h2 h3 : hname .	var n1 : Int .
+	var e : Env .
 
-    eq Handler ( i . h { s }  db,  j . h' ) = if i . h == j . h' then s else Handler(db, j . h') fi .
+---    eq Handler ( i . h { s }  db,  j . h' ) = if i . h == j . h' then s else Handler(db, j . h') fi .
+
+
+
+    op (_,_,_,_,_) : aid hname aid hname Int -> topology [ctor] .
+    op _,_ : topology topology -> topology [assoc comm] .
+    op topo:_ : topology -> Env .
+    op deftop : -> topology .
+    op _(topo) : Env -> topology .
+    eq ((topo: t) e)(topo) = t .
+    eq (V:Var : i e)(topo) = e(topo) .
+    eq (V:Var : z:Int e)(topo) = e(topo) .
+    op (_,_,_) : aid hname Int -> dest .
+    op map : topology aid hname -> dest .								--- in: aid and hname of sender
+
+	eq map(((a1 , h1 , a2 , h2 , n1) , t), a3, h3) = if a1 == a3 and h1 == h3 then (a2,h2,n1) else map(t , a3,h3) fi .
+---	eq map((a1 , h1 , a2 , h2 , n1) , a2 , h2) = n1 .				--- is a2 h2 ok?
 
 endfm
 
@@ -99,7 +126,6 @@ fmod HANDLERS is
     ex ENVIRONMENT .
 ---    pr BUFFERS .
     sort DB hid hname .
-    
     op _:{_} : hname stmtList -> Env .
     op _(_) : Env hname -> stmtList .
 
@@ -115,5 +141,6 @@ fmod HANDLERS is
     eq (h' : { s } ) e ( h ) = if h' == h then s else e ( h ) fi .
     eq (v : i) e ( h ) = e ( h ) .
     eq Handler ( e,  id . h ) = e ( h ) .
+
 
 endfm)

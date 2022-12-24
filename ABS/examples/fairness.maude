@@ -1,0 +1,64 @@
+load semantics.maude
+load model-checker.maude
+
+mod MAIN is
+    pr COMPOSITION .
+    ops sender self dest dest1 dest2 : -> Var .
+    ops a b c : -> aid .
+    ops Const mes bback cback out1 out2 : -> hname .
+    op initialState : -> Composition .
+
+    var i : Int .
+    eq handler(a . Const) = (dest1 ! mes ; dest2 ! mes ; endH) .
+    eq handler(a . bback) = (dest1 ! mes ; endH) .
+    eq handler(a . cback) = (dest2 ! mes ; endH) .
+    eq handler(b . mes) =  (dest ! bback ; endH) .
+    eq handler(c . mes) =  (dest ! cback ; endH) .
+
+    
+    eq initialState =
+	< mt Cog: (g(a b c deftop) : 0 defagroup),  
+	(a : < mt  (self : a) (dest1 : b) (dest2 : c) , (cntr(msg(a,Const, a),1) / emptyBA) , Tee >)
+	(b : < mt  (self : b) (dest : a) , emptyBA , Tee >)	
+	(c : < mt  (self : c) (dest : a) , emptyBA , Tee >)	
+	emptyAL ,
+	
+	< mt topo: (a b c), emptyBN > > .
+
+endm
+
+
+--- frew [100] in MAIN : initialState .
+
+mod DF-pred is
+	pr MAIN .
+	inc SATISFACTION .
+	including MODEL-CHECKER .
+	including LTL-SIMPLIFIER .
+	subsort Composition < State .
+	
+
+	ops progb progc recb recc : -> Prop .
+
+	var al : actorList .	vars e e1  : Env .	var n : netState .	var ba : bufferActor .	var y : stmtList .
+	vars a1 a2 a3 : Int .
+
+	eq (< e , al b : < e1 , cntr(msg(a,mes,b),1) / emptyBA , y > , n >) |= recb = true .
+	eq (< e , al c : < e1 , cntr(msg(a,mes,c),1) / emptyBA , y > , n >) |= recc = true .
+
+	eq c:Composition |= p:Prop = false [owise] .
+
+endm
+
+red modelCheck(initialState , [](<> recb /\ <> recc)) .
+---red modelCheck(initialState , ([] <> progb /\ [] <> progc) => ([](<> recb /\ <> recc))) .
+---starvation: 
+--- red modelCheck(initialState, [] ( (<> tr1onBr) /\ (<> tr2onBr) ) ) .
+--- red modelCheck(initialState, ([] <> progt1 /\ [] <> progt2 /\ [] <> progc) => ( ([] <> tr1onBr) /\ ([] <> tr2onBr) ) ) .
+---safety: 
+--- red modelCheck(initialState, [] (~(tr1onBr /\ tr2onBr))) .
+
+
+--- search [1,100] in MAIN : initialState =>* < e1:Env , a:actorList tr1 : < e2:Env onBr : 1 , x:bufferActor , y:stmtList > tr2 : < e3:Env onBr : 1 , x:bufferActor , y:stmtList > , n:netState > .
+
+--- show search graph .

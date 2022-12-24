@@ -11,18 +11,23 @@ endfm
 fmod ENVIRONMENT is
     pr SYNTAX .
     inc INT .
-    inc STRING .
+---    inc STRING .
     sort Var Env Expr .
     subsort Int Var aid < Expr .
-    sort topology .
-
+    sort topology agroup .
+    op deftop : -> topology .
+    op defagroup : -> agroup .
+    
     subsort aid < topology .                        --- network stores topology/actors list/...
-    op __ : topology topology -> topology [assoc comm] .
-    op topo:_ : topology -> Env .
+    op __ : topology topology -> topology [assoc comm prec 40 ] .
+    op topo:_ : topology -> Env [prec 43] .
 
+    op g_:_ : topology Int -> agroup [prec 41] .
+    op __ : agroup agroup -> agroup [assoc comm prec 42] . 
+    op Cog:_ : agroup -> Env [ prec 43] .
 
-
-    ops sender self rt now : -> Var .                   --- !!! different across languages
+    op sender : -> Var .
+    op self : -> Var .
 
     op mt : -> Env [ctor] .
     op _:_ : Var Int -> Env [ prec 43 ] .
@@ -54,7 +59,8 @@ fmod ENVIRONMENT is
     eq remove( (v : j) e , v') = if v == v' then e else (v : j) remove(e,v') fi .
 
     eq e [ v -> i ] = remove(e,v) v : i .
-    eq e [ v -> j ] = remove(e,v) v : j .
+    eq e [ v -> j ] = remove(e,v) v : j . 
+
     
     ceq eval ( v , (v' : j ) e ) = j if j : aid /\ v == v' [owise] .
 
@@ -81,8 +87,6 @@ fmod HANDLERS is
     op _{_} : hid stmtList -> DB [ prec 50 ] .
     op __ : DB DB -> DB [comm assoc prec 60 ].
     op Handler : DB hid -> stmtList .
-
-    op handler : Env hid -> stmtList .
 
     op handler : hid -> stmtList .
 
