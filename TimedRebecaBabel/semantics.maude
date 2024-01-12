@@ -13,7 +13,7 @@ mod STMTEXECUTION is
     op _!_ : Var hname -> Stmt [prec 45] .
     op if(_) {_} else {_} : Expr stmtList stmtList -> Stmt .
     op skip : -> Stmt .
-    op endH : -> Stmt . 		--- can empty stmt exist?
+    op endH : -> Stmt . 		
     op _!_after(_) : Var hname Expr -> Stmt .                                                       --- NEW
     op delay(_) : Int -> Stmt .                                                                    --- NEW
     op resume : -> Stmt .
@@ -144,9 +144,6 @@ endm
 mod COMPOSITION is
     pr NETWORK .
     pr ACTOR .
-    
----    sort WHOLE .
----    op _|_ : DB Composition -> WHOLE .
 
     sort actorList Composition .
     
@@ -201,6 +198,39 @@ mod COMPOSITION is
     eq actTimeAgree (< e , b , pi >) = max( e ( now ), e ( rt ) ) .
 
 
+---( ******** "prog" varible added to rules for fairness example: ********
+
+    op prog : -> Var .
+    op resetProg : actorList -> actorList .
+    eq resetProg(emptyAL) = emptyAL .
+    eq resetProg((x : < e , b , pi > ) s) = (x : < e [ prog -> 0 ] , b , pi >) resetProg(s) .
+
+
+    rl [shuffle_bufA] :
+        < e , (x : < e' , b / b' , pi' >) s , n > => < e , (x : < e' [prog -> 0] , b' / b , pi' >) resetProg(s) , n > .
+
+    rl [shuffle_bufN] :
+        < e , s , < e2 , b2 \ b'' > > => < e , resetProg(s) , < e2 , b'' \ b2 > > .
+
+    crl [ACTOR_PROG_I] :
+        < e , (x : s1) s , n > => < start(e,x) , resetProg(s) [ x -> < e' [ prog -> 1 ] , b' , pi' > ] , n > if
+             schedPolicy(e,n,x) /\  < e1 , b , pi > := s1  /\  I< e1 , b , pi > => < e' , b' , pi' > .
+    
+    crl [ACTOR_PROG_II] :
+        < e , (x : s1) s , n > => < e , resetProg(s) [ x -> < e' [ prog -> 1 ] , b' , pi' > ] , n > if
+            < e1 , b , pi > := s1 /\ I< e1 , b , pi > => < e' , b' , pi' > /\ pi =/= endH .
+            
+    crl [ACTOR_PROG_III] :
+        < e , (x : s1) s , n > => < terminate(e , x) , resetProg(s) [ x -> < e' [ prog -> 1 ] , b' , pi' > ] , n > if
+            < e1 , b , endH > := s1 /\ I< e1 , b , endH > => < e' , b' , pi' > .
+)
+
+    rl [shuffle_bufA] :
+        < e , (x : < e' , b / b' , pi' >) s , n > => < e , (x : < e' , b' / b , pi' >) s , n > .
+
+    rl [shuffle_bufN] :
+        < e , s , < e2 , b2 \ b'' > > => < e , s , < e2 , b'' \ b2 > > .
+
     crl [ACTOR_PROG_I] :
         < e , (x : s1) s , n > => < start(e,x) , s [ x -> < e' , b' , pi' > ] , n > if
              schedPolicy(e,n,x) /\  < e1 , b , pi > := s1  /\  I< e1 , b , pi > => < e' , b' , pi' > .
@@ -229,6 +259,9 @@ mod COMPOSITION is
 
     rl [HelpTIMEPROG_II] :
         emptyAL t => emptyAL .
+
+
+
 endm
 
 
@@ -238,7 +271,6 @@ mod MAIN is
     ops c1 c2 : -> aid .
     ops handler1 handler2 : -> hname .
     op self : -> Var .
----    subsort Int < aid .
     op fakedb : -> DB .
 
 endm
@@ -249,100 +281,3 @@ break select ACTOR_PROG_I ACTOR_PROG_II ACTOR_PROG_III COMMUNICATION_I COMMUNICA
 ---set trace on .
 ---set trace eq off .
 ---set trace rl on .
----(
-
-
-
-    crl [TIMESYNC_A] :
-        < e , b , pi > => < e [ now -> t ] , b , pi > if syncCond(e,b,t) .
-
-    crl [TIMESYNC_N] :
-        < e , b > => < e [ now -> t ] , b > if syncCond(e,b,t) .
-
-    crl [TIMEPROG] :
-        db | < e , s , n > => db | < e[ now -> t ] , s' , n' > if t := min(netTimeAgree(n),actTimeAgree(s)) /\ n t => n' /\ s t => s' .
-
-    cre [HelpTIMEPROG] :
-        ((x : s1) s ) t => (x : s2) (s' t) if s1 t => s2 /\ s t => s' .
-    rl [HelpTIMEPROG_II] :
-        emptyHL t => emptyHL .
-
-
-
-
-rew emptyHL | < mt , emptyAL , < mt , emptyBN > > .
-
-debug rew emptyHL | < mt , c1 : < mt self : c1 , emptyBA , Tee > , < mt , emptyBN > > .
-
-
-
-  
-frew in MAIN : (c1 . handler1 { a1 = a1 + 1 ; delay ( 4 ) ; endH }) emptyHL | < mt now : 0 , (c1 : < mt now : 0 a1 : 3 , emptyBA , Tee >) emptyAL , < mt now : 0 , append(msg(c1, handler1, c1, 2), emptyBN)> > .
-
-frew in MAIN : emptyHL | < mt now : 4 , (c1 : < mt now : 4 rt : 4 a1 : 3 , emptyBA , resume ; endH  >) emptyAL , < mt now : 4 , emptyBN > > .
-
-frew in MAIN : (c1 . handler1 { a1 = a1 + 1 ; endH }) emptyHL | < mt , (c1 : < mt (a1 : 3)(self : c1) , emptyBA , ( self ! handler1 ); endH >) emptyAL , < mt , add(c1,emptyBA,emptyBN) > > .
-
-
-frew in MAIN : (c1 . handler1 { if( a1 > 4 ) { a1 = a1 + 1 ; endH } else { a1 = a1 + 2 } ; endH }) emptyHL | < mt , (c1 : < mt a1 : 3 , emptyBA , Tee >) emptyAL , < mt ,append(msg(c1,handler1,c1), append(msg(c1, handler1, c1), append(msg(c1, handler1, c1),emptyBN))) > > .
-
-
-
-frew in MAIN : (c1 . handler1 { self ! handler1 ; endH }) emptyHL | < mt , (c1 : < mt self : c1 , emptyBA , Tee >) emptyAL , < mt , append( msg(c1,handler1,c1) , emptyBN) > > .
-
-
-
-
-frew in MAIN : emptyHL (c1 . handler1 { a2 ! handler2 after ( 4 ) ; endH }) (c2 . handler2 { a1 = a1 + 1 ; if( a1 < 20 ) { a2 ! handler1 after ( 4 ) ; endH } else { endH } } )| 
-< mt now : 0 , 
-(c1 : < mt (now : 0)(a2 : c2)(self : c1 ), emptyBA , Tee >)
-(c2 : < mt (now : 0)(a1 : 0 )(a2 : c1)(self : c2 ) , emptyBA , Tee >)
-emptyAL , 
-< mt now : 0 , append( msg(c1,handler1,c1,0) , emptyBN) > > .     --- !! never forget self variable for sending messages
-
-===>
-
-frew in MAIN : emptyHL (c1 . handler1 { a2 ! handler2 ; endH }) (c2 . handler2 { a1 = a1 + 3 ; if( a1 < 20 ) { a2 ! handler1 ; endH } else { endH } } )| 
-< mt , 
-(c1 : < mt (a2 : c2)(self : c1 ), emptyBA , self ! handler1 >)
-(c2 : < mt (a1 : 0 )(a2 : c1)(self : c2 ) , emptyBA , Tee >)
-emptyAL , 
-< mt , add(c1,emptyBA,add(c2,emptyBA, emptyBN)) > > . 
-
-
-
-
-
-
-frew in MAIN : emptyHL c1 . handler1 { a2 ! handler2 ; endH } c2 . handler2 { a1 = a1 + 3 ; if( a1 < 20 ) { a2 ! handler1 ; endH } else { endH } } | 
-< mt , 
-c1 : < mt   a2 : c2   self : c1 , emptyBA , self ! handler1 >
-c2 : < mt   a1 : 0   a2 : c1  self : c2  , emptyBA , Tee >
-emptyAL , 
-< mt , add(c1,emptyBA,add(c2,emptyBA, emptyBN)) > > . 
-
-
-
-
-
-
-
-frew in MAIN :  emptyHL (c1 . handler1 { (a2 ! handler2) ; (endH) }) (c1 . handler2 { (a5 = a5 + 1) ; (endH)}) (c2 . handler2 { (a2 ! handler2) ; (endH) } )| 
-< mt , 
-(c1 : < mt (a2 : c2)(a5 : 10)(self : c1 ), emptyBA , Tee >)
-(c2 : < mt (a1 : 0 )(a2 : c1)(self : c2 ) , emptyBA , Tee >)
-emptyAL , 
-< mt , add(c2,emptyBA,add(c1,append(msg(c1,handler1,c1),emptyBA) , emptyBN)) > > . 
-
-===>
-
-
-frew in MAIN :  emptyHL (c1 . handler1 { a2 ! handler2 ; endH }) (c1 . handler2 { a5 = a5 + 1 ; endH}) (c2 . handler2 { a2 ! handler2 ; endH } )| 
-< mt , 
-(c1 : < mt (a2 : c2)(a5 : 10)(self : c1 ), emptyBA , self ! handler1 >)
-(c2 : < mt (a1 : 0 )(a2 : c1)(self : c2 ) , emptyBA , Tee >)
-emptyAL , 
-< mt , add(c1,emptyBA,add(c2,emptyBA, emptyBN))  > > . 
-
-
-)

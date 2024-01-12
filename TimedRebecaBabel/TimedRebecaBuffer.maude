@@ -63,11 +63,10 @@ mod BUFFERS is
     eq head((m \ emptyBN)) = m .
     eq head((m \ b)) = if ar(m) < ar(head(b)) then m else head(b) fi .
 
-    rl [shuffle_bufA] :
-        q / q' => q' / q .
-
-    rl [shuffle_bufN] :
-        b \ b' => b' \ b .
+---    rl [shuffle_bufA] :
+   ---     q / q' => q' / q .
+---    rl [shuffle_bufN] :
+   ---     b \ b' => b' \ b .
 endm
 
 mod POLICIES is
