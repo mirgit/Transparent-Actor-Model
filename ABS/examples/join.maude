@@ -1,4 +1,4 @@
-load semantics.maude
+load ../semantics.maude
 load model-checker.maude
 
 mod MAIN is
@@ -28,40 +28,3 @@ endm
 
 
 search in MAIN : initialState =>! cc:Composition .
-
-
---- frew [100] in MAIN : initialState .
-
----(
-mod DF-pred is
-	pr MAIN .
-	inc SATISFACTION .
-	including MODEL-CHECKER .
-	including LTL-SIMPLIFIER .
-	subsort Composition < State .
-	
-
-	ops tr1onBr tr2onBr progt1 progt2 progc : -> Prop .
-
-	var db : DB .			var a : actorList .		var x : bufferActor .		var y : stmtList .
-	var e e1  : Env .			var n : netState . 
-
-	eq (< e , a (tr1 : < e1 (prog : 1)  , x , y >) , n >) |= progt1 = true .
-	eq (< e , a (tr2 : < e1 (prog : 1)  , x , y >) , n >) |= progt2 = true .
-	eq (< e , a (controller : < e1 (prog : 1)  , x , y >) , n >) |= progc = true .
-	eq (< e , a (tr1 : < e1 (onBr : 1)  , x , y >) , n >) |= tr1onBr = true .
-	eq (< e , a (tr2 : < e1 (onBr : 1)  , x , y >) , n >) |= tr2onBr = true .
-	eq c:Composition |= p:Prop = false [owise] .
-
-
-endm)
----starvation: 
---- red modelCheck(initialState, [] ( (<> tr1onBr) /\ (<> tr2onBr) ) ) .
---- red modelCheck(initialState, ([] <> progt1 /\ [] <> progt2 /\ [] <> progc) => ( ([] <> tr1onBr) /\ ([] <> tr2onBr) ) ) .
----safety: 
---- red modelCheck(initialState, [] (~(tr1onBr /\ tr2onBr))) .
-
-
---- search [1,100] in MAIN : initialState =>* < e1:Env , a:actorList tr1 : < e2:Env onBr : 1 , x:bufferActor , y:stmtList > tr2 : < e3:Env onBr : 1 , x:bufferActor , y:stmtList > , n:netState > .
-
---- show search graph .
