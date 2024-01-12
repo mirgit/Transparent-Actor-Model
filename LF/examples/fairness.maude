@@ -1,4 +1,4 @@
-load semantics.maude
+load ../semantics.maude
 load model-checker.maude
 
 mod MAIN is
@@ -26,12 +26,10 @@ mod MAIN is
 	(c : < mt (now : 0) (self : c) (dest : a) , emptyBA , Tee >)	
 	emptyAL ,
 	
-	< mt topo: ((a,out1,b,mes,1),(a,out2,c,mes,1),(b,bback,a,bback,1),(c,cback,a,cback,1), deftop) (Stime : 0) (Mtime : 0) , emptyBN > > .
+	< mt topo: ((a,out1,b,mes,0),(a,out2,c,mes,0),(b,bback,a,bback,0),(c,cback,a,cback,0), deftop) (Stime : 0) (Mtime : 0) , emptyBN > > .
 
 endm
 
-
---- frew [100] in MAIN : initialState .
 
 mod DF-pred is
 	pr MAIN .
@@ -54,14 +52,4 @@ mod DF-pred is
 endm
 
 red modelCheck(initialState , [](<> recb /\ <> recc) /\ [](<> ~ recb /\ <> ~ recc) ) .
----red modelCheck(initialState , ([] <> progb /\ [] <> progc) => ([](<> recb /\ <> recc))) .
----starvation: 
---- red modelCheck(initialState, [] ( (<> tr1onBr) /\ (<> tr2onBr) ) ) .
---- red modelCheck(initialState, ([] <> progt1 /\ [] <> progt2 /\ [] <> progc) => ( ([] <> tr1onBr) /\ ([] <> tr2onBr) ) ) .
----safety: 
---- red modelCheck(initialState, [] (~(tr1onBr /\ tr2onBr))) .
 
-
---- search [1,100] in MAIN : initialState =>* < e1:Env , a:actorList tr1 : < e2:Env onBr : 1 , x:bufferActor , y:stmtList > tr2 : < e3:Env onBr : 1 , x:bufferActor , y:stmtList > , n:netState > .
-
---- show search graph .

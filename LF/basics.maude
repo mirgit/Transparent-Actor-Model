@@ -1,7 +1,6 @@
 fmod SYNTAX is
-    sorts aid Stmt stmtList netState .
+    sorts aid Stmt stmtList netState actorList .
     sorts msg trans .
----    subsort msg < ACT .
 
     subsort Stmt < stmtList .
     op _;_ : stmtList stmtList -> stmtList [ prec 50 gather (e E)] .
@@ -78,13 +77,11 @@ fmod ENVIRONMENT is
     eq eval(ex == ex' , e) = if eval(ex,e) == eval (ex' , e) then 1 else 0 fi .			--- !!! uncomment this line, warnings are considered.
     
     eq e ( v ) = eval ( v , e ) .
---- ex :  red in ENVIRONMENT : eval ( a1 + 4 , mt a1 : 3) .
 
 endfm
 
 fmod HANDLERS is
     ex ENVIRONMENT .
----    pr BUFFERS .
     sort topology dest .	
     sort DB hid hname .
     op emptyHL : -> DB [ctor] .
@@ -100,8 +97,6 @@ fmod HANDLERS is
 	var  t : topology .	vars a1 a2 a3 : aid .	vars h1 h2 h3 : hname .	var n1 : Int .
 	var e : Env .
 
----    eq Handler ( i . h { s }  db,  j . h' ) = if i . h == j . h' then s else Handler(db, j . h') fi .
-
 
 
     op (_,_,_,_,_) : aid hname aid hname Int -> topology [ctor] .
@@ -116,31 +111,7 @@ fmod HANDLERS is
     op map : topology aid hname -> dest .								--- in: aid and hname of sender
 
 	eq map(((a1 , h1 , a2 , h2 , n1) , t), a3, h3) = if a1 == a3 and h1 == h3 then (a2,h2,n1) else map(t , a3,h3) fi .
----	eq map((a1 , h1 , a2 , h2 , n1) , a2 , h2) = n1 .				--- is a2 h2 ok?
+
 
 endfm
 
-
----(
-fmod HANDLERS is
-    ex ENVIRONMENT .
----    pr BUFFERS .
-    sort DB hid hname .
-    op _:{_} : hname stmtList -> Env .
-    op _(_) : Env hname -> stmtList .
-
-    
-    op _{_} : hid stmtList -> DB .
-    op __ : DB DB -> DB .
-    op Handler : Env hid -> stmtList .
-    op _._ : aid hname -> hid .
-    
-    var e : Env .		var v : Var .		var i : Int .
-    var id : aid .		var h h' : hname .		var s : stmtList .
-    
-    eq (h' : { s } ) e ( h ) = if h' == h then s else e ( h ) fi .
-    eq (v : i) e ( h ) = e ( h ) .
-    eq Handler ( e,  id . h ) = e ( h ) .
-
-
-endfm)

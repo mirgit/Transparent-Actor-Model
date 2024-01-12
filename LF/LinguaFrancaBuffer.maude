@@ -18,18 +18,15 @@ fmod BUFFERS is
 
     op (_,_) : Int Int -> time .
     op first : time -> Int .
- ---   op third : dest -> Int .
 	ops _<_ _>_ : time time -> Bool .
 
 
     eq (k,l) > (n,o) = if k =/= n then k > n else l > o fi .
     eq (k,l) < (n,o) = if k =/= n then k < n else l < o fi .
     eq first(k,l) = k .
- ---   eq third((i,h,k)) = k .
 
     eq rcvr(msg(i,h,n,k,l)) = i .
     eq value(msg(i,h,n,k,l)) = n .
----    eq sndr(msg(i,h,n,k,l)) = i .
     eq ar(msg(i,h,n,k,l)) = (k ,l).
     eq msg(i,h,n,k,l) . name = (i . h) .
 
@@ -89,17 +86,16 @@ fmod POLICIES is
     op takePolicy : Env bufferActor -> msg .
     op rcvPolicy : bufferActor msg -> Bool .
     op transferPolicy : Env bufferNet -> msg .
-    op schedPolicy : Env netState aid -> Bool  .
+    op schedPolicy : Env actorList aid -> Bool  .
 
     
     vars e e' : Env .		var m : msg .		var b : bufferActor .		var b' : bufferNet .
-    var i : aid .   var db : DB .				vars t : Int .
+    var i : aid .				vars t : Int .
 
     eq transferPolicy(e, b') =  peek(b') . --- peek(b)
     eq takePolicy (e,b) = peek(b) .	
     eq rcvPolicy (b,m) = true .
-    eq schedPolicy(e, n:netState , i) = true .
----    					if : ar(peek(b') > e' ( now )	/\
+    eq schedPolicy(e, s:actorList , i) = true .
 
 
 

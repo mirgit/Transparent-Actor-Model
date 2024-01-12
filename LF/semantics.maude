@@ -131,11 +131,9 @@ endm
 mod COMPOSITION is
     pr NETWORK .
     pr ACTOR .
-    
----    sort WHOLE .
----    op _|_ : DB Composition -> WHOLE .
 
-    sort actorList Composition .
+
+    sort Composition .
     
     op _:_ : aid localState -> actorList [prec 62 ] .
     op emptyAL : -> actorList [ctor] .
@@ -197,12 +195,13 @@ mod COMPOSITION is
 
     crl [ACTOR_PROG_I] :
         < e , (x : s1) s , n > => < start(e,x) , s [ x -> < e' , b' , pi' > ] , n > if
-             schedPolicy(e,n,x) /\  finished(take(Hpty(e(pty),x),s)) /\ < e1 , b , pi > := s1  /\  I< e1 , b , pi > => < e' , b' , pi' > /\
+             schedPolicy(e,s,x) /\  finished(take(Hpty(e(pty),x),s)) /\ < e1 , b , pi > := s1  /\  I< e1 , b , pi > => < e' , b' , pi' > /\
              < e2 , b2 > := n /\ (isEmpty(b2) or (first(ar(peek(b2))) > eval(Stime, e2))) .
     
     crl [ACTOR_PROG_II] :
         < e , (x : s1) s , n > => < e , s [ x -> < e' , b' , pi' > ] , n > if
-            < e1 , b , pi > := s1 /\ I< e1 , b , pi > => < e' , b' , pi' > /\ pi =/= Tee .
+            < e1 , b , pi > := s1 /\ I< e1 , b , pi > => < e' , b' , pi' > /\ pi =/= Tee /\
+             < e2 , b2 > := n /\ (isEmpty(b2) or (first(ar(peek(b2))) > eval(Stime, e2))) .
             
     crl [ACTOR_PROG_III] :
         < e , (x : s1) s , n > => < terminate(e , x) , s [ x -> < e' , b' , pi' > ] , n > if
@@ -233,7 +232,6 @@ mod MAIN is
     ops c1 c2 : -> aid .
     ops handler1 handler2 : -> hname .
     op self : -> Var .
----    subsort Int < aid .
     op fakedb : -> DB .
 
 endm
