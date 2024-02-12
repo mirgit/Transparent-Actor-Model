@@ -1,0 +1,24 @@
+load ../semantics.maude
+---load model-checker.maude
+
+mod MAIN is
+    pr COMPOSITION .
+    ops sender self dest lst : -> Var .
+    ops a b : -> aid .
+    ops Const mes1 mes2 : -> hname .
+    op initialState : -> Composition .
+    eq handler(a . Const) = (dest ! mes1 ; dest ! mes2 ; endH) .
+    eq handler(b . Const) = (receive{(msg(a,mes1,b,0) thenn (lst = 1)) , endGS }end ; receive{(msg(a,mes2,b,0) thenn (lst = 2 * lst )) , endGS }end ; endH) .
+
+    eq initialState =
+    < mt (now : 0) procs(mtq,mtq,app(a,app(b,mtq)),mtq) , 
+    (a : < mt  (now : 0) (self : a) (dest : b) , emptyBA , handler(a . Const) >)
+    (b : < mt  (now : 0) (self : b) (lst : 0) , emptyBA , handler(b . Const) >) 
+    emptyAL ,
+    < mt (now : 0) , emptyBN > > .
+
+endm
+
+--- ******** Note: The value of "b.lst" should be 2 if messages are handeled in right order. notice that due to the rule "COMMUNICATION_BR" other final states are possible because of lost messages. ********
+
+search in MAIN : initialState =>! cc:Composition .

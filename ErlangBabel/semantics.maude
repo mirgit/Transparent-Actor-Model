@@ -1,0 +1,262 @@
+load basics.maude
+load ErlangBuffer.maude
+
+
+mod STMTEXECUTION is
+    pr SYNTAX .
+    pr BUFFERS .
+    op <_,_> : Env stmtList -> trans .
+    op I<_,_> : Env stmtList -> trans .
+    op __ : trans msg -> trans .	
+    op Tee : -> Stmt .
+    op _=_ : Var Expr -> Stmt [prec 45] .
+    op _!_ : Var hname -> Stmt [prec 45] .
+    op if(_) {_} else {_} : Expr stmtList stmtList -> Stmt .
+    op skip : -> Stmt .
+    op endH : -> Stmt . 		--- can empty stmt exist?
+
+    op GenerateMSG : aid hname aid Int -> msg .
+
+    var e e' : Env .		var pi : Stmt .   vars pi' pi1 pi2 : stmtList .
+    var ex : Expr .		var v : Var .      var m m' : msg .	var gsl1 : gsList .
+    crl [COND1] :
+        I< e , if ( ex ) { pi1 } else { pi2 } > => < e' , pi' >
+            if eval( ex,e) > 0 /\ I< e , pi1 > => < e' , pi' > .
+
+    crl [COND2] :
+        I< e , if ( ex ) { pi1 } else { pi2 } > => < e' , pi' >
+            if eval( ex,e) == 0 /\ I< e , pi2 > => < e' , pi' > .
+
+    rl [SKIP] :
+        I< e , skip > => < e , Tee > .
+
+    rl [ENDH] :
+        I< e , endH > => < e , Tee > .
+
+    rl [ASSIGN] :
+        I< e , v = ex > => < e [ v -> eval(ex,e) ] , Tee > .
+        
+    crl [SEQ] :
+        I< e , pi ; pi1 > => < e' , pi' ; pi1 > if I< e , pi > => < e' , pi' > .
+
+    crl [SEQ2] :
+        I< e , Tee ; pi1 > => < e' , pi' > if < e , pi1 > => < e' , pi' > .
+
+    crl [SEQM] :
+        I< e , pi ; pi1 > => < e' , pi' ; pi1 > m if I< e , pi > => < e' , pi' > m .
+
+    crl [SEQ2M] :
+        I< e , Tee ; pi1 > => < e' , pi' > m if < e , pi1 > => < e' , pi' > m .
+
+    var n : hname .		vars i j : aid .    var k : Expr .
+
+    rl [SEND] :
+        I< e , v ! n > => < e , Tee > GenerateMSG(e ( self ), n , e ( v ) , e ( now ) ) .
+
+    eq GenerateMSG(i,n, j , k ) = msg (i, n, j, k) .
+
+---NEW:
+    crl  [matchAndDo] :
+        I< e , receive{gsl1}end ; pi' > m => < e , pi1 ; pi' > if pi1 := todo(gsl1,m) .
+
+    eq todo(((m' thenn pi1) ,gsl1),m) =  if m == m' then pi1 else todo(gsl1,m) fi .
+
+
+endm
+
+
+
+
+mod ACTOR is
+    pr STMTEXECUTION .
+    pr POLICIES .
+    pr HANDLERS .
+    sort localState actTime .
+    subsort localState < actTime .
+    op __ : localState msg -> localState [prec 50] .
+    op __ : DB localState -> localState [prec 60] .
+    op __ : localState Int -> actTime .			--- prec?
+    op <_,_,_> : Env bufferActor stmtList -> localState .
+    op I<_,_,_> : Env bufferActor stmtList -> localState .
+
+    var e e' : Env .		var b : bufferActor .		var pi pi' : stmtList .
+    var m : msg .		var db : DB .					var t : Int .
+
+---NEW
+	crl [TAKE] :
+		I< e , b , pi > => < e , remove(b,m) , pi' > if m := takePolicy(e,b,pi) /\ m =/= noMSG /\ I< e , pi > m => < e , pi' > .
+    crl [STMTEXECUTION_1] :
+        I< e , b , pi > => < e' , b , pi' > if I< e , pi > => < e' , pi' > /\ pi =/= pi' .
+    crl [STMTEXECUTION_2] :
+        I< e , b , pi > => < e' , b , pi' > m if I< e , pi > => < e' , pi' > m /\ pi =/= pi' .
+    crl [RECEIVE_A] :
+        I< e , b , pi > m => < e , insert(b,m) , pi > if rcvPolicy(b,m) .
+    
+    crl [TIMESYNC_A] :
+        < e , b , pi > t => < e [ now -> t ] , b , pi > if synCondA(e,b,pi, t) .
+
+
+    op synCondA : Env bufferActor stmtList Int -> Bool .
+---NEW: don't need this cause we don't have delays here..( do we?)
+---    ceq synCondA(e,b,pi,t) = true if eval(now,e) < eval(rt,e) and eval(now,e) < t and t <= eval(rt,e)  .
+    ceq synCondA(e,b,pi,t) = true if isEmpty(b) and pi == Tee .
+    eq synCondA(e,b,pi,t) = false [owise] .
+ 
+endm
+
+
+
+mod NETWORK is
+    pr POLICIES .
+
+    sort netTime .
+    subsort netState < netTime .
+    op __ : netState msg -> netState [prec 50] .
+    op __ : DB netState -> netState [prec 60] .
+    op __ : netState Int -> netTime . 				--- prec
+    op <_,_> : Env bufferNet -> netState .
+    op I<_,_> : Env bufferNet -> netState .
+    var e : Env .		var b : bufferNet .
+    var m : msg .		var db : DB .
+    var t : Int .
+    
+    rl [RECEIVE_N] :
+        I< e , b > m => < e , insert(b, tag(e,m)) > .
+
+    crl [TRANSFER] :
+        I< e , b > => < e , remove(b,m) > m if m := transferPolicy(e,b) /\ empty(b) == false .
+
+    crl [TIMESYNC_N] :
+        < e , b > t => < e [ now -> t ] , b > if synCondN(e,b,t) .
+
+
+    op synCondN : Env bufferNet Int -> Bool .
+    ceq synCondN(e,b,t) = true if empty(b) .
+--- NEW: don't need this cause we don't have delays here..( do we?)
+---    ceq synCondN(e,b,t) = true if eval(now,e) < t and t <= ar(head(b)) .
+    eq synCondN(e,b,t) = false [owise] .
+endm
+
+
+
+mod COMPOSITION is
+    pr NETWORK .
+    pr ACTOR .
+
+    sort actorList Composition .
+    
+    op _:_ : aid localState -> actorList [prec 62 ] .
+    op emptyAL : -> actorList [ctor] .
+    op __ : actorList actorList -> actorList [comm assoc prec 65 ] .
+    op __ : actorList Int -> actorList .
+    op <_,_,_> : Env actorList netState -> Composition [ prec 70 ].
+    
+    ops start terminate : Env aid -> Env .
+    op _(_) : actorList aid -> localState [ prec 68 ] .
+    op remove : actorList aid -> actorList .
+    op _[_->_] : actorList aid localState -> actorList .
+    op netTimeAgree : netState -> Int .
+    op actTimeAgree : localState -> Int .
+    op actsTimeAgree : actorList -> Int .
+    --- ?op min : Int Int -> Int .
+    
+    var s s' : actorList .
+    var n n' : netState .
+    var s1 s2 : localState .
+    var x y : aid .
+    var e e' e'' e1 e2 : Env . 
+    var db : DB .
+    var b b' : bufferActor .
+    var b2 b'' : bufferNet .
+    var pi pi' : stmtList .
+    var m : msg .
+    var t : Int .
+    vars q1 q2 q3 q4 : q .
+
+    eq remove(emptyAL , x) = emptyAL .
+    eq remove( (x : s1) s,y) = if x == y then s else (x : s1 ) remove(s,y) fi .
+    eq s [ x -> (< e , b , pi >) ] = (x : < e , b , pi >) remove(s,x) .
+    eq x : s1 s ( y ) = if x == y then s1 else s ( y ) fi .
+
+    eq start((e procs(q1,q2,q3,q4)),x) =  if in(x,q1) then (e procs(move(q1,x),q2,q3,q4))
+    								else (if in(x,q2) then (e procs(q1,move(q2,x),q3,q4))
+    								else (if in(x,q3) then (e procs(q1,q2,move(q3,x),q4))
+    								else (e procs(q1,q2,q3,move(q4,x))) fi) fi) fi .
+    eq terminate((e procs(q1,q2,q3,q4)),x ) = if in(x,q1) then (e procs(remove(q1,x),q2,q3,q4))
+    									else (if in(x,q2) then (e procs(q1,remove(q2,x),q3,q4))
+    									else (if in(x,q3) then (e procs(q1,q2,remove(q3,x),q4))
+    									else (e procs(q1,q2,q3,remove(q4,x))) fi) fi) fi . 
+
+
+    op finished : actorList -> Bool .
+    op finished1 : localState -> Bool .
+    eq finished1( < e , emptyBA , Tee > ) = true .
+    eq finished1(s1) = false [owise] .
+    eq finished(emptyAL) = true .
+    eq finished((x : s1) s ) = finished1(s1) and finished(s) .
+
+
+    eq netTimeAgree( < e  , b2 > ) = if empty(b2) then (eval( now, e ) + 1000 ) else ar(head(b2)) fi .
+    eq actsTimeAgree( (x : s1 ) emptyAL ) = actTimeAgree(s1) . 
+    eq actsTimeAgree( (x : s1 ) s ) = min( actTimeAgree(s1) , actsTimeAgree(s)) .
+--- REMOVED: don't need this cause we don't have delays here..( do we?)
+---    eq actTimeAgree (< e , b , Tee >) = if isEmpty(b) then (eval( now, e) + 1000) else max( e ( now ), e ( rt ) ) fi .
+---    eq actTimeAgree (< e , b , pi >) = max( e ( now ), e ( rt ) ) .
+
+---NEW:
+	crl [SKIP_TURN] :
+		< e , s , n > => < start(e,x) , s , n > if
+			x := schedPolicy(e,n) /\ x =/= noID /\ < e1 , b , pi > := s ( x ) /\ pi == Tee .	--- b==empty not needed?
+
+
+    crl [ACTOR_PROG_I] :
+        < e , s , n > => < start(e,x) , s [ x -> < e' , b' , pi' > ] , n > if
+             x := schedPolicy(e,n) /\  < e1 , b , pi > := s ( x )  /\  I< e1 , b , pi > => < e' , b' , pi' > /\ pi =/= endH .
+    
+    crl [ACTOR_PROG_II] :
+        < e , (x : s1) s , n > => < e , s [ x -> < e' , b' , pi' > ] , n > if
+            < e1 , b , pi > := s1 /\ I< e1 , b , pi > => < e' , b' , pi' > /\ pi =/= endH .
+            
+    crl [ACTOR_PROG_III] :
+        < e , (x : s1) s , n > => < terminate(e , x) , s [ x -> < e' , b' , pi' > ] , n > if
+            < e1 , b , endH > := s1 /\ I< e1 , b , endH > => < e' , b' , pi' > .
+            
+    crl [COMMUNICATION_I] :
+        < e , (x : s1) s , n > => < e , s [ x -> < e' , b' , pi' > ] , < e'' , b'' > > if
+            < e1 , b , pi > := s1 /\ I< e1 , b , pi > => < e' , b' , pi' > m /\  < e2 , b2 > := n /\ I< e2 , b2 > m => < e'' , b'' > .
+             
+    crl [COMMUNICATION_II] :
+        < e , s , n > => < e , s [ y -> < e' , b' , pi' > ] , < e'' , b'' > > if
+            < e2 , b2 > := n /\ I< e2 , b2 > => < e'' , b'' > m /\ y := rcvr(m) /\ < e1 , b , pi > := s ( y ) /\ I< e1 , b , pi > m => < e' , b' , pi' > .
+
+    crl [COMMUNICATION_BR] :
+        < e , s , n > => < e , s , < e'' , b'' > > if
+            < e2 , b2 > := n /\ I< e2 , b2 > => < e'' , b'' > m .
+    
+    crl [TIMEPROG] :
+        < e , s , n > => < e[ now -> t ] , s' , n' > if t := min(netTimeAgree(n),actsTimeAgree(s)) /\ t > eval(now, e) /\ n t => n' /\ s t => s' /\ (s t) =/= s' /\ < e2, b2 > := n /\ not(finished(s) and empty(b2)) .
+
+    crl [HelpTIMEPROG] :
+        ((x : s1) s) t => ((x : s2) s') if s1 t => s2 /\ s t => s' /\ (s t) =/= s' .
+
+    rl [HelpTIMEPROG_II] :
+        emptyAL t => emptyAL .
+endm
+
+
+mod MAIN is
+    pr COMPOSITION .
+    ops a1 a2 a3 a4 a5 a6 : -> Var .
+    ops c1 c2 : -> aid .
+    ops handler1 handler2 : -> hname .
+    op self : -> Var .
+    op fakedb : -> DB .
+
+endm
+
+set print color on .
+break select ACTOR_PROG_I ACTOR_PROG_II ACTOR_PROG_III COMMUNICATION_I COMMUNICATION_II TIMEPROG .
+---set break on .
+---set trace on .
+---set trace eq off .
+---set trace rl on .

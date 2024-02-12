@@ -1,0 +1,121 @@
+fmod SYNTAX is
+    sorts aid Stmt stmtList netState .
+    sorts msg trans .
+    subsort Stmt < stmtList .
+    op _;_ : stmtList stmtList -> stmtList [ prec 50 gather (e E)] .
+---NEW:
+	op noID : -> aid .
+    sorts gs gsList .
+    subsort gs < gsList .
+    op endGS : -> gs .
+    op _thenn_ : msg stmtList -> gs .
+    op _,_ : gsList gsList -> gsList [assoc] .
+    op todo : gsList msg -> stmtList .
+    op receive{_}end : gsList -> Stmt .
+    
+endfm
+
+
+fmod ENVIRONMENT is
+    pr SYNTAX .
+    inc INT .
+    inc STRING .
+    sort Var Env Expr .
+    subsort Int Var aid < Expr .
+
+
+
+
+    ops sender self now : -> Var .
+
+    op mt : -> Env [ctor] .
+    op _:_ : Var Int -> Env [ prec 43 ] .
+    op __ : Env Env -> Env [assoc comm prec 45] .
+    
+    
+    op _:_ : Var aid -> Env [ctor prec 43 ] .
+    op _(_) : Env Var -> aid [ prec 50 ] .
+    
+    
+    ops _+_ _*_ _-_ : Expr Expr -> Expr [ditto] .
+    ops _<_ _>_ _==_ : Expr Expr -> Expr .
+    
+    op eval : Expr Env -> Expr .
+    op _(_) : Env Var -> Int [ prec 50 ] .
+
+
+    op _[_->_] : Env Var Int -> Env [ prec 50 ] .
+    op _[_->_] : Env Var aid -> Env [ prec 50 ] .
+    op remove : Env Var -> Env .
+
+    
+    
+    var e : Env .		var v v' : Var .		var i : Int .		var ex ex' : Expr .
+    var j : aid .
+
+    eq remove (mt , v) = mt .
+    eq remove( (v : i) e , v') = if v == v' then e else (v : i) remove(e,v') fi .
+    eq remove( (v : j) e , v') = if v == v' then e else (v : j) remove(e,v') fi .
+
+    eq e [ v -> i ] = remove(e,v) v : i .
+    eq e [ v -> j ] = remove(e,v) v : j .
+    
+    ceq eval ( v , (v' : j ) e ) = j if j : aid /\ v == v' [owise] .
+
+    eq eval(ex + ex' , e) = eval(ex , e) + eval(ex' , e) .
+    eq eval(ex * ex' , e) = eval(ex , e) * eval(ex' , e) .
+    eq eval(ex - ex' , e) = eval(ex , e) - eval(ex' , e) .
+    eq eval(i , e) = i .
+    eq eval(v , (v' : i) e) = if v == v' then i else eval(v,e) fi .
+    eq eval(ex < ex' , e) = if eval(ex,e) < eval (ex' , e) then 1 else 0 fi .
+    eq eval(ex > ex' , e) = if eval(ex,e) > eval (ex' , e) then 1 else 0 fi .
+    eq eval(ex == ex' , e) = if eval(ex,e) == eval (ex' , e) then 1 else 0 fi .
+    
+    eq e ( v ) = eval ( v , e ) .
+
+---NEW:
+	sort q .
+	op mtq : -> q [ctor] .
+	op app : aid q -> q [ctor] .			--- example: app(s1,app(s2,mtq))
+	op in : aid q -> Bool .
+	ops move insert remove : q aid -> q .
+	op len : q -> Int .
+	op head : q -> aid .
+	op procs : q q q q -> Env .		--- example: (e processes(mtq,mtq,mtq,mtq))
+
+
+	var q1 : q .		vars y x : aid .
+	eq in(x,app(y,q1)) = if x == y then true else in(x,q1) fi .
+	eq in(x,mtq ) = false .
+	eq move(app(x,q1),x) = insert(q1,x) .
+	eq insert(q1 , x) = app(x,q1) .
+	eq remove(mtq , x) = mtq .
+	eq remove (app(y,q1) , x) = if x == y then q1 else app(y,remove(q1,x)) fi .
+	eq len(app(x,q1)) = 1 + len(q1) .
+	eq len(mtq) = 0 .
+	eq head(app(x,q1)) = x .
+	eq head(mtq) = noID .
+
+
+endfm
+
+fmod HANDLERS is
+    ex ENVIRONMENT .
+    sort DB hid hname .
+    op emptyHL : -> DB [ctor] .
+    op _._ : aid hname -> hid [ctor prec 42 ] .
+    op _{_} : hid stmtList -> DB [ prec 50 ] .
+    op __ : DB DB -> DB [comm assoc prec 60 ].
+    op Handler : DB hid -> stmtList .
+
+    op handler : Env hid -> stmtList .
+
+    op handler : hid -> stmtList .
+
+    
+    var db : DB .		var i j : aid .		var h h' : hname .		var s : stmtList .
+
+    eq Handler ( i . h { s }  db,  j . h' ) = if i . h == j . h' then s else Handler(db, j . h') fi .
+
+endfm
+
